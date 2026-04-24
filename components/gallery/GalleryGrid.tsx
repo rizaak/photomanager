@@ -29,10 +29,16 @@ export function GalleryGrid({
 
   return (
     <>
-      {/* Masonry grid */}
-      <div className="columns-2 sm:columns-3 lg:columns-4 gap-2">
+      {/* 2 columns on mobile, 3 on desktop — larger images feel more editorial */}
+      <div className="columns-2 lg:columns-3 gap-3 lg:gap-4">
         {photos.map((photo, i) => (
-          <div key={photo.id} className="mb-2 break-inside-avoid">
+          <div
+            key={photo.id}
+            className={`break-inside-avoid ${
+              // Every 6th image gets extra space below — creates natural visual grouping
+              (i + 1) % 6 === 0 ? 'mb-8 lg:mb-10' : 'mb-3 lg:mb-4'
+            }`}
+          >
             <PhotoCard
               photo={photo}
               index={i}
@@ -44,7 +50,6 @@ export function GalleryGrid({
         ))}
       </div>
 
-      {/* Modal */}
       {modalIndex !== null && (
         <PhotoModal
           photos={photos}
