@@ -76,23 +76,52 @@ export const mockGalleries: Gallery[] = [
   },
 ]
 
-const photoColors = [
-  'bg-stone-200', 'bg-stone-300', 'bg-stone-400',
-  'bg-stone-600', 'bg-stone-700', 'bg-stone-800',
-  'bg-stone-200', 'bg-stone-500', 'bg-stone-300',
-  'bg-stone-700', 'bg-stone-200', 'bg-stone-400',
-  'bg-stone-600', 'bg-stone-300', 'bg-stone-800',
-  'bg-stone-200', 'bg-stone-400', 'bg-stone-600',
+// Varied aspect ratios simulating real photography sessions
+const photoSpecs = [
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 5000 }, // portrait 4:5
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 4000 }, // square 1:1
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 5000, h: 4000 }, // landscape 5:4
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 5000 }, // portrait 4:5
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 4000, h: 4000 }, // square 1:1
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 5000, h: 4000 }, // landscape 5:4
+  { w: 4000, h: 5333 }, // portrait ~3:4
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 4000, h: 4000 }, // square 1:1
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 5000 }, // portrait 4:5
+  { w: 4000, h: 6000 }, // portrait 2:3
+  { w: 6000, h: 4000 }, // landscape 3:2
+  { w: 4000, h: 5000 }, // portrait 4:5
 ]
 
-export const mockPhotos: Photo[] = Array.from({ length: 18 }, (_, i) => ({
+// Range of stone tones to simulate diverse photographic subjects
+const photoColors = [
+  'bg-stone-200', 'bg-stone-600', 'bg-stone-300', 'bg-stone-800',
+  'bg-stone-400', 'bg-stone-700', 'bg-stone-200', 'bg-stone-500',
+  'bg-stone-800', 'bg-stone-300', 'bg-stone-600', 'bg-stone-200',
+  'bg-stone-700', 'bg-stone-400', 'bg-stone-900', 'bg-stone-300',
+  'bg-stone-500', 'bg-stone-200', 'bg-stone-700', 'bg-stone-400',
+  'bg-stone-800', 'bg-stone-300', 'bg-stone-600', 'bg-stone-200',
+]
+
+export const mockPhotos: Photo[] = Array.from({ length: 24 }, (_, i) => ({
   id: `photo_${i + 1}`,
   galleryId: 'gal_1',
   filename: `IMG_${String(1000 + i).padStart(4, '0')}.jpg`,
-  width: 4000,
-  height: i % 3 === 0 ? 6000 : i % 3 === 1 ? 4000 : 5000,
+  width: photoSpecs[i].w,
+  height: photoSpecs[i].h,
   status: 'ready',
-  selected: [2, 5, 9, 11].includes(i),
+  selected: [2, 5, 9, 14, 19].includes(i),
   placeholderColor: photoColors[i],
 }))
 

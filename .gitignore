@@ -1,1 +1,9 @@
 node_modules
+
+# Next.js
+.next/
+out/
+
+# Env and OS
+.env*.local
+.DS_Store

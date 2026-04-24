@@ -10,20 +10,21 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
   const { id } = use(params)
   const gallery = mockGalleries.find((g) => g.id === id) ?? mockGalleries[0]
   const [selectedIds, setSelectedIds] = useState<string[]>(
-    mockPhotos.filter((p) => p.selected).map((p) => p.id)
+    mockPhotos.filter((p) => p.selected).map((p) => p.id),
   )
   const [submitted, setSubmitted] = useState(false)
 
   if (submitted) {
     return (
       <div className="min-h-screen bg-stone-950 flex items-center justify-center px-6">
-        <div className="text-center max-w-md">
-          <CheckCircle2 size={48} strokeWidth={1} className="text-accent mx-auto mb-6" />
+        <div className="text-center max-w-md" style={{ animation: 'scaleIn 300ms ease forwards' }}>
+          <CheckCircle2 size={44} strokeWidth={1} className="text-accent mx-auto mb-7" />
           <h2 className="font-serif text-3xl text-white mb-4">Selection submitted</h2>
           <p className="text-stone-400 font-sans text-sm leading-relaxed">
             Your photographer has been notified. You selected{' '}
-            <strong className="text-stone-200">{selectedIds.length} photos</strong>.
-            {' '}They will be in touch with your final delivery.
+            <strong className="text-stone-200">{selectedIds.length}</strong>{' '}
+            {selectedIds.length === 1 ? 'photo' : 'photos'}.
+            They will be in touch with next steps.
           </p>
         </div>
       </div>
@@ -31,31 +32,31 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="min-h-screen bg-stone-950">
+    <div className="min-h-screen bg-stone-950 flex flex-col">
       {/* Header */}
-      <header className="bg-stone-950 border-b border-stone-900 px-6 py-5">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="bg-stone-950 border-b border-stone-900 px-6 py-4 shrink-0">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs text-stone-600 font-sans uppercase tracking-widest mb-1">
+            <p className="text-[11px] text-stone-600 font-sans uppercase tracking-[0.15em] mb-0.5">
               {mockPhotographer.name}
             </p>
-            <h1 className="font-serif text-xl text-white">{gallery.title}</h1>
+            <h1 className="font-serif text-lg text-white leading-tight">{gallery.title}</h1>
           </div>
-          <p className="text-sm text-stone-500 font-sans hidden md:block">
+          <p className="text-sm text-stone-600 font-sans tabular-nums hidden sm:block">
             {mockPhotos.length} photos
           </p>
         </div>
       </header>
 
-      {/* Instructions */}
-      <div className="bg-stone-900/50 border-b border-stone-900 px-6 py-3">
-        <p className="max-w-6xl mx-auto text-xs text-stone-500 font-sans text-center">
-          Click a photo to select or deselect it. When you&apos;re happy with your choices, submit your selection below.
+      {/* Instruction strip */}
+      <div className="bg-stone-900/40 border-b border-stone-900/60 px-6 py-2.5 shrink-0">
+        <p className="text-[11px] text-stone-600 font-sans text-center tracking-wide">
+          Click any photo to open it &nbsp;·&nbsp; Select your favorites &nbsp;·&nbsp; Submit when ready
         </p>
       </div>
 
-      {/* Photo grid */}
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      {/* Gallery — edge-to-edge on dark background */}
+      <div className="flex-1 p-0.5 pt-0.5">
         <GalleryGrid
           photos={mockPhotos}
           selectable={true}
@@ -63,19 +64,19 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
         />
       </div>
 
-      {/* Sticky footer */}
-      <div className="sticky bottom-0 bg-stone-950/95 backdrop-blur-sm border-t border-stone-900 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
-          <div>
+      {/* Sticky selection footer */}
+      <div className="sticky bottom-0 bg-stone-950/95 backdrop-blur-md border-t border-stone-900 px-6 py-4 shrink-0">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
+          <p className="text-sm font-sans">
             {selectedIds.length === 0 ? (
-              <p className="text-stone-500 text-sm font-sans">No photos selected</p>
+              <span className="text-stone-600">No photos selected yet</span>
             ) : (
-              <p className="text-white text-sm font-sans">
-                <span className="font-medium text-accent">{selectedIds.length}</span>{' '}
-                {selectedIds.length === 1 ? 'photo' : 'photos'} selected
-              </p>
+              <>
+                <span className="text-accent font-medium tabular-nums">{selectedIds.length}</span>
+                <span className="text-stone-400"> {selectedIds.length === 1 ? 'photo' : 'photos'} selected</span>
+              </>
             )}
-          </div>
+          </p>
 
           <Button
             variant="primary"
