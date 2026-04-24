@@ -17,28 +17,28 @@ export function PhotoCard({ photo, index, onOpen, onToggleSelect, selectable }: 
   const paddingBottom = `${Math.min(Math.max(aspectRatio * 100, 66), 150)}%`
 
   return (
-    <div className="relative group overflow-hidden">
-      {/* Gold border when selected */}
-      <div
-        className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-200 ${
-          photo.selected ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={{ boxShadow: 'inset 0 0 0 2px #C9A96E' }}
-      />
-
+    <div
+      className="relative group overflow-hidden"
+      style={{
+        boxShadow: photo.selected
+          ? '0 0 0 2px #C9A96E, 0 4px 20px rgba(0,0,0,0.55)'
+          : '0 4px 20px rgba(0,0,0,0.55)',
+      }}
+    >
       {/* Photo (click → open modal) */}
       <div
         className="relative w-full cursor-pointer"
         style={{ paddingBottom }}
         onClick={() => onOpen(index)}
       >
+        {/* Base photo — brightened slightly so it feels alive against the dark bg */}
         <div
-          className={`absolute inset-0 ${photo.placeholderColor} transition-[filter] duration-300 group-hover:brightness-90`}
+          className={`absolute inset-0 ${photo.placeholderColor} transition-[filter] duration-300 brightness-[1.06] group-hover:brightness-[1.12]`}
         />
 
-        {/* Subtle selected dim */}
+        {/* Subtle selected overlay */}
         {photo.selected && (
-          <div className="absolute inset-0 bg-stone-950/10" />
+          <div className="absolute inset-0 bg-accent/8" />
         )}
 
         {/* Watermark */}
@@ -47,9 +47,6 @@ export function PhotoCard({ photo, index, onOpen, onToggleSelect, selectable }: 
             FRAME
           </span>
         </div>
-
-        {/* Hover overlay — shows on group hover */}
-        <div className="absolute inset-0 bg-stone-950/0 group-hover:bg-stone-950/10 transition-colors duration-300" />
       </div>
 
       {/* Select checkbox — only when selectable */}

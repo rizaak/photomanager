@@ -30,9 +30,9 @@ export function GalleryGrid({
   return (
     <>
       {/* Masonry grid */}
-      <div className="columns-2 sm:columns-3 lg:columns-4 gap-0.5">
+      <div className="columns-2 sm:columns-3 lg:columns-4 gap-2">
         {photos.map((photo, i) => (
-          <div key={photo.id} className="mb-0.5 break-inside-avoid">
+          <div key={photo.id} className="mb-2 break-inside-avoid">
             <PhotoCard
               photo={photo}
               index={i}

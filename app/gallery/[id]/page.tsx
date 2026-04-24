@@ -32,15 +32,15 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="min-h-screen bg-stone-950 flex flex-col">
-      {/* Header */}
-      <header className="bg-stone-950 border-b border-stone-900 px-6 py-4 shrink-0">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#1C1917' }}>
+      {/* Header — slightly darker than body for contrast */}
+      <header className="border-b border-white/5 px-6 py-4 shrink-0" style={{ backgroundColor: '#141210' }}>
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
           <div>
-            <p className="text-[11px] text-stone-600 font-sans uppercase tracking-[0.15em] mb-0.5">
+            <p className="text-[11px] text-stone-500 font-sans uppercase tracking-[0.15em] mb-0.5">
               {mockPhotographer.name}
             </p>
-            <h1 className="font-serif text-lg text-white leading-tight">{gallery.title}</h1>
+            <h1 className="font-serif text-lg text-stone-100 leading-tight">{gallery.title}</h1>
           </div>
           <p className="text-sm text-stone-600 font-sans tabular-nums hidden sm:block">
             {mockPhotos.length} photos
@@ -49,14 +49,14 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
       </header>
 
       {/* Instruction strip */}
-      <div className="bg-stone-900/40 border-b border-stone-900/60 px-6 py-2.5 shrink-0">
+      <div className="border-b border-white/[0.04] px-6 py-2.5 shrink-0" style={{ backgroundColor: '#191714' }}>
         <p className="text-[11px] text-stone-600 font-sans text-center tracking-wide">
           Click any photo to open it &nbsp;·&nbsp; Select your favorites &nbsp;·&nbsp; Submit when ready
         </p>
       </div>
 
-      {/* Gallery — edge-to-edge on dark background */}
-      <div className="flex-1 p-0.5 pt-0.5">
+      {/* Gallery — padded so shadows can breathe */}
+      <div className="flex-1 p-3 sm:p-4">
         <GalleryGrid
           photos={mockPhotos}
           selectable={true}
@@ -65,7 +65,7 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* Sticky selection footer */}
-      <div className="sticky bottom-0 bg-stone-950/95 backdrop-blur-md border-t border-stone-900 px-6 py-4 shrink-0">
+      <div className="sticky bottom-0 backdrop-blur-md border-t border-white/5 px-6 py-4 shrink-0" style={{ backgroundColor: 'rgba(20,18,16,0.96)' }}>
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
           <p className="text-sm font-sans">
             {selectedIds.length === 0 ? (
