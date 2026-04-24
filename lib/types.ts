@@ -1,4 +1,6 @@
 export type GalleryStatus = 'draft' | 'active' | 'archived'
+// Tracks where the client is in the selection lifecycle
+export type ClientActivity = 'not_opened' | 'selecting' | 'submitted'
 export type PhotoStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 export type Plan = 'free' | 'pro' | 'studio'
 
@@ -12,6 +14,8 @@ export interface Gallery {
   expiresAt?: string
   downloadEnabled: boolean
   coverColor: string
+  selectedCount?: number       // photos the client has marked
+  clientActivity?: ClientActivity
 }
 
 export interface Photo {

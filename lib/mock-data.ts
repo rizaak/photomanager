@@ -20,6 +20,9 @@ export const mockGalleries: Gallery[] = [
     expiresAt: '2026-05-10',
     downloadEnabled: false,
     coverColor: 'bg-stone-300',
+    // Client finished selecting — photographer needs to enable download
+    selectedCount: 28,
+    clientActivity: 'submitted',
   },
   {
     id: 'gal_2',
@@ -31,6 +34,9 @@ export const mockGalleries: Gallery[] = [
     expiresAt: '2026-05-05',
     downloadEnabled: true,
     coverColor: 'bg-stone-400',
+    // Download already enabled — all done
+    selectedCount: 31,
+    clientActivity: 'submitted',
   },
   {
     id: 'gal_3',
@@ -41,6 +47,7 @@ export const mockGalleries: Gallery[] = [
     createdAt: '2026-04-18',
     downloadEnabled: false,
     coverColor: 'bg-stone-200',
+    // Draft — not yet shared with client
   },
   {
     id: 'gal_4',
@@ -51,6 +58,8 @@ export const mockGalleries: Gallery[] = [
     createdAt: '2026-03-02',
     downloadEnabled: true,
     coverColor: 'bg-stone-500',
+    selectedCount: 18,
+    clientActivity: 'submitted',
   },
   {
     id: 'gal_5',
@@ -62,6 +71,9 @@ export const mockGalleries: Gallery[] = [
     expiresAt: '2026-05-20',
     downloadEnabled: false,
     coverColor: 'bg-stone-300',
+    // Shared but client hasn't opened it yet
+    selectedCount: 0,
+    clientActivity: 'not_opened',
   },
   {
     id: 'gal_6',
@@ -71,8 +83,11 @@ export const mockGalleries: Gallery[] = [
     status: 'active',
     createdAt: '2026-04-15',
     expiresAt: '2026-05-15',
-    downloadEnabled: true,
+    downloadEnabled: false,
     coverColor: 'bg-stone-400',
+    // Client actively browsing and making selections
+    selectedCount: 19,
+    clientActivity: 'selecting',
   },
 ]
 

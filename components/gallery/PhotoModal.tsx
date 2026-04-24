@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { X, ChevronLeft, ChevronRight, Heart } from 'lucide-react'
 import type { Photo } from '@/lib/types'
 
@@ -11,10 +11,17 @@ interface PhotoModalProps {
   onToggleSelect: (id: string) => void
 }
 
+// How long chrome stays visible after last interaction
+const CHROME_HIDE_MS = 3800
+// Minimum horizontal travel (px) to count as a swipe
+const SWIPE_X = 52
+// Maximum vertical drift allowed during swipe
+const SWIPE_Y = 60
+
 function getPhotoStyle(photo: Photo): React.CSSProperties {
   const isPortrait = photo.height >= photo.width
-  const MAX_H = 'calc(100vh - 160px)'
-  const MAX_W = 'calc(100vw - 160px)'
+  const MAX_H = 'calc(100vh - 120px)'
+  const MAX_W = 'calc(100vw - 80px)'
   return {
     aspectRatio: `${photo.width} / ${photo.height}`,
     maxHeight: MAX_H,
@@ -26,28 +33,80 @@ function getPhotoStyle(photo: Photo): React.CSSProperties {
 export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: PhotoModalProps) {
   const [index, setIndex] = useState(initialIndex)
   const [fading, setFading] = useState(false)
+  const [chromeVisible, setChromeVisible] = useState(true)
+
+  const chromeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  // Swipe tracking
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  const swipeFired = useRef(false)
+
   const photo = photos[index]
 
-  // Cross-fade between photos instead of instant swap
+  // ── Chrome auto-hide ─────────────────────────────────────────────────────
+  const revealChrome = useCallback(() => {
+    setChromeVisible(true)
+    clearTimeout(chromeTimer.current)
+    chromeTimer.current = setTimeout(() => setChromeVisible(false), CHROME_HIDE_MS)
+  }, [])
+
+  const chromeFade: React.CSSProperties = {
+    opacity: chromeVisible ? 1 : 0,
+    transition: 'opacity 550ms ease',
+    pointerEvents: chromeVisible ? 'auto' : 'none',
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────────────
   const navigate = useCallback(
     (dir: 1 | -1) => {
+      revealChrome()
       setFading(true)
       setTimeout(() => {
         setIndex((i) => Math.max(0, Math.min(photos.length - 1, i + dir)))
         setFading(false)
-      }, 110)
+      }, 160)
     },
-    [photos.length],
+    [photos.length, revealChrome],
   )
 
   const goPrev = useCallback(() => navigate(-1), [navigate])
   const goNext = useCallback(() => navigate(1), [navigate])
 
+  // ── Swipe gesture (pointer events work for mouse + touch + stylus) ────────
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    swipeStart.current = { x: e.clientX, y: e.clientY }
+    swipeFired.current = false
+  }, [])
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!swipeStart.current) return
+      const dx = e.clientX - swipeStart.current.x
+      const dy = e.clientY - swipeStart.current.y
+      swipeStart.current = null
+      if (Math.abs(dx) > SWIPE_X && Math.abs(dy) < SWIPE_Y) {
+        swipeFired.current = true
+        if (dx < 0) goNext(); else goPrev()
+      }
+    },
+    [goNext, goPrev],
+  )
+
+  // Swallow the click that follows a successful swipe so it doesn't close the modal
+  const handleBackdropClick = useCallback(() => {
+    if (swipeFired.current) { swipeFired.current = false; return }
+    onClose()
+  }, [onClose])
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [])
+    revealChrome()
+    return () => {
+      document.body.style.overflow = prev
+      clearTimeout(chromeTimer.current)
+    }
+  }, [revealChrome])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -55,54 +114,76 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
       if (e.key === 'f' || e.key === 'F') onToggleSelect(photo.id)
+      revealChrome()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, goPrev, goNext, onToggleSelect, photo.id])
+  }, [onClose, goPrev, goNext, onToggleSelect, photo.id, revealChrome])
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col"
-      style={{ backgroundColor: '#0D0C0B', animation: 'fadeIn 180ms ease forwards' }}
+      className="fixed inset-0 z-50"
+      style={{ backgroundColor: '#0D0C0B', animation: 'modalReveal 520ms cubic-bezier(0.22,1,0.36,1) forwards' }}
+      // Any mouse movement or touch reveals chrome
+      onMouseMove={revealChrome}
+      onTouchStart={revealChrome}
     >
-      {/* Header — softer separator */}
-      <header className="flex items-center justify-between px-5 h-12 shrink-0 border-b border-white/[0.05]">
-        <span className="text-stone-600 text-xs font-sans tracking-wide">{photo.filename}</span>
-        <div className="flex items-center gap-5">
-          <span className="text-stone-700 text-xs font-sans tabular-nums">
-            {index + 1}&thinsp;/&thinsp;{photos.length}
-          </span>
-          <button
-            onClick={onClose}
-            className="text-stone-500 hover:text-stone-200 transition-colors"
-            aria-label="Close"
-          >
-            <X size={17} strokeWidth={1.5} />
-          </button>
-        </div>
+
+      {/* ── Floating header veil — gradient, not a bar ────────────────────── */}
+      <header
+        className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-4 pb-14 pointer-events-none"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(13,12,11,0.75) 0%, transparent 100%)',
+          ...chromeFade,
+          pointerEvents: chromeVisible ? 'auto' : 'none',
+        }}
+      >
+        {/* Counter only — filename ("IMG_1001.jpg") is meaningless to the client */}
+        <span className="text-stone-600 text-xs font-sans tabular-nums select-none pointer-events-none">
+          {index + 1}&thinsp;/&thinsp;{photos.length}
+        </span>
+        <button
+          onClick={onClose}
+          className="text-stone-500 hover:text-stone-200 transition-colors duration-200"
+          aria-label="Close"
+        >
+          <X size={17} strokeWidth={1.5} />
+        </button>
       </header>
 
-      {/* Photo area */}
+      {/* ── Photo area — fills full viewport ─────────────────────────────── */}
       <div
-        className="flex-1 flex items-center justify-center overflow-hidden relative cursor-zoom-out"
-        onClick={onClose}
+        className="absolute inset-0 flex items-center justify-center overflow-hidden"
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onClick={handleBackdropClick}
       >
-        {/* Nav — frosted circle appears on hover, not just a color shift */}
+        {/* ── Left nav zone — full height, wide enough to tap easily on mobile ── */}
         <button
-          className="absolute left-4 z-10 flex items-center justify-center w-11 h-11 rounded-full text-stone-500 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20 disabled:cursor-default cursor-default"
-          style={{ backdropFilter: 'blur(8px)' }}
+          className="absolute left-0 top-0 h-full w-1/4 z-10 flex items-center justify-start pl-3"
+          style={{ ...chromeFade, cursor: index === 0 ? 'default' : 'pointer' }}
           onClick={(e) => { e.stopPropagation(); goPrev() }}
           disabled={index === 0}
           aria-label="Previous photo"
         >
-          <ChevronLeft size={24} strokeWidth={1.25} />
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20"
+            style={{ backdropFilter: 'blur(8px)' }}
+          >
+            <ChevronLeft size={22} strokeWidth={1.25} />
+          </div>
         </button>
 
-        {/* Photo — crossfades on navigate, no key remount */}
+        {/* ── Photo — crossfades on navigate ────────────────────────────────── */}
         <div
-          className="relative cursor-default"
+          className="relative"
           onClick={(e) => e.stopPropagation()}
-          style={{ opacity: fading ? 0 : 1, transition: 'opacity 110ms ease' }}
+          style={{
+            opacity: fading ? 0 : 1,
+            transition: fading
+              ? 'opacity 160ms ease-in'
+              : 'opacity 340ms cubic-bezier(0.22,1,0.36,1)',
+          }}
         >
           <div className={`${photo.placeholderColor} relative`} style={getPhotoStyle(photo)}>
             {/* Watermark */}
@@ -112,9 +193,9 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
               </span>
             </div>
 
-            {/* Selection indicator — small glowing dot, not a heavy badge */}
+            {/* Selection dot — minimal, no button chrome */}
             <div
-              className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent transition-all duration-300"
+              className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent"
               style={{
                 opacity: photo.selected ? 1 : 0,
                 boxShadow: photo.selected ? '0 0 8px rgba(201,169,110,0.7)' : 'none',
@@ -125,19 +206,32 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           </div>
         </div>
 
+        {/* ── Right nav zone ─────────────────────────────────────────────────── */}
         <button
-          className="absolute right-4 z-10 flex items-center justify-center w-11 h-11 rounded-full text-stone-500 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20 disabled:cursor-default cursor-default"
-          style={{ backdropFilter: 'blur(8px)' }}
+          className="absolute right-0 top-0 h-full w-1/4 z-10 flex items-center justify-end pr-3"
+          style={{ ...chromeFade, cursor: index === photos.length - 1 ? 'default' : 'pointer' }}
           onClick={(e) => { e.stopPropagation(); goNext() }}
           disabled={index === photos.length - 1}
           aria-label="Next photo"
         >
-          <ChevronRight size={24} strokeWidth={1.25} />
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/[0.07] transition-all duration-200"
+            style={{ backdropFilter: 'blur(8px)' }}
+          >
+            <ChevronRight size={22} strokeWidth={1.25} />
+          </div>
         </button>
       </div>
 
-      {/* Footer — softer separator */}
-      <footer className="flex items-center justify-between px-5 h-14 shrink-0 border-t border-white/[0.05]">
+      {/* ── Floating footer veil ─────────────────────────────────────────── */}
+      <footer
+        className="absolute bottom-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-14 pb-5"
+        style={{
+          background: 'linear-gradient(to top, rgba(13,12,11,0.75) 0%, transparent 100%)',
+          ...chromeFade,
+          pointerEvents: chromeVisible ? 'auto' : 'none',
+        }}
+      >
         <button
           onClick={() => onToggleSelect(photo.id)}
           className={`group flex items-center gap-2.5 text-sm font-sans transition-colors duration-200 ${
@@ -156,6 +250,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           {photo.selected ? 'Selected' : 'Select'}
         </button>
 
+        {/* Keyboard hints — desktop only, very dim */}
         <div className="hidden md:flex items-center gap-4 text-[11px] text-stone-800 font-sans select-none">
           <span>← → navigate</span>
           <span>F select</span>

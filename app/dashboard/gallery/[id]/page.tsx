@@ -68,7 +68,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
               <p className="text-xs font-sans text-stone-400 uppercase tracking-widest">Photos</p>
             </div>
             <div>
-              <p className="text-2xl font-serif text-stone-900">4</p>
+              <p className="text-2xl font-serif text-stone-900">{gallery.selectedCount ?? 0}</p>
               <p className="text-xs font-sans text-stone-400 uppercase tracking-widest">Selected</p>
             </div>
             {gallery.expiresAt && (
