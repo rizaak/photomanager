@@ -19,30 +19,36 @@ function getPhotoStyle(photo: Photo): React.CSSProperties {
     aspectRatio: `${photo.width} / ${photo.height}`,
     maxHeight: MAX_H,
     maxWidth: MAX_W,
-    ...(isPortrait
-      ? { height: MAX_H, width: 'auto' }
-      : { width: MAX_W, height: 'auto' }),
+    ...(isPortrait ? { height: MAX_H, width: 'auto' } : { width: MAX_W, height: 'auto' }),
   }
 }
 
 export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: PhotoModalProps) {
   const [index, setIndex] = useState(initialIndex)
+  const [fading, setFading] = useState(false)
   const photo = photos[index]
 
-  const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
-  const goNext = useCallback(
-    () => setIndex((i) => Math.min(photos.length - 1, i + 1)),
+  // Cross-fade between photos instead of instant swap
+  const navigate = useCallback(
+    (dir: 1 | -1) => {
+      setFading(true)
+      setTimeout(() => {
+        setIndex((i) => Math.max(0, Math.min(photos.length - 1, i + dir)))
+        setFading(false)
+      }, 110)
+    },
     [photos.length],
   )
 
-  // Scroll lock
+  const goPrev = useCallback(() => navigate(-1), [navigate])
+  const goNext = useCallback(() => navigate(1), [navigate])
+
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
 
-  // Keyboard navigation
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -56,104 +62,103 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-stone-950 flex flex-col"
-      style={{ animation: 'fadeIn 180ms ease forwards' }}
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ backgroundColor: '#0D0C0B', animation: 'fadeIn 180ms ease forwards' }}
     >
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-5 h-12 border-b border-stone-900 shrink-0">
-        <span className="text-stone-500 text-xs font-sans tracking-wide">
-          {photo.filename}
-        </span>
+      {/* Header — softer separator */}
+      <header className="flex items-center justify-between px-5 h-12 shrink-0 border-b border-white/[0.05]">
+        <span className="text-stone-600 text-xs font-sans tracking-wide">{photo.filename}</span>
         <div className="flex items-center gap-5">
           <span className="text-stone-700 text-xs font-sans tabular-nums">
             {index + 1}&thinsp;/&thinsp;{photos.length}
           </span>
           <button
             onClick={onClose}
-            className="text-stone-500 hover:text-white transition-colors"
+            className="text-stone-500 hover:text-stone-200 transition-colors"
             aria-label="Close"
           >
-            <X size={18} strokeWidth={1.5} />
+            <X size={17} strokeWidth={1.5} />
           </button>
         </div>
       </header>
 
-      {/* Photo area — click backdrop to close */}
+      {/* Photo area */}
       <div
         className="flex-1 flex items-center justify-center overflow-hidden relative cursor-zoom-out"
         onClick={onClose}
       >
-        {/* Prev */}
+        {/* Nav — frosted circle appears on hover, not just a color shift */}
         <button
-          className="absolute left-4 z-10 flex items-center justify-center w-10 h-10 text-stone-600 hover:text-white transition-colors disabled:opacity-20 disabled:cursor-default cursor-default"
+          className="absolute left-4 z-10 flex items-center justify-center w-11 h-11 rounded-full text-stone-500 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20 disabled:cursor-default cursor-default"
+          style={{ backdropFilter: 'blur(8px)' }}
           onClick={(e) => { e.stopPropagation(); goPrev() }}
           disabled={index === 0}
           aria-label="Previous photo"
         >
-          <ChevronLeft size={28} strokeWidth={1} />
+          <ChevronLeft size={24} strokeWidth={1.25} />
         </button>
 
-        {/* Photo */}
+        {/* Photo — crossfades on navigate, no key remount */}
         <div
-          key={photo.id}
           className="relative cursor-default"
           onClick={(e) => e.stopPropagation()}
-          style={{ animation: 'scaleIn 220ms ease forwards' }}
+          style={{ opacity: fading ? 0 : 1, transition: 'opacity 110ms ease' }}
         >
-          <div
-            className={`${photo.placeholderColor} relative`}
-            style={getPhotoStyle(photo)}
-          >
-            {/* Watermark overlay */}
+          <div className={`${photo.placeholderColor} relative`} style={getPhotoStyle(photo)}>
+            {/* Watermark */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
-              <span className="text-white/5 font-serif text-6xl rotate-[-30deg] tracking-[0.3em]">
+              <span className="text-white/[0.04] font-serif text-6xl rotate-[-30deg] tracking-[0.3em]">
                 FRAME
               </span>
             </div>
 
-            {/* Selected indicator on modal photo */}
-            {photo.selected && (
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-stone-950/60 px-2.5 py-1.5 backdrop-blur-sm">
-                <Heart size={11} strokeWidth={0} className="fill-accent" />
-                <span className="text-accent text-[11px] font-sans tracking-wide">Selected</span>
-              </div>
-            )}
+            {/* Selection indicator — small glowing dot, not a heavy badge */}
+            <div
+              className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent transition-all duration-300"
+              style={{
+                opacity: photo.selected ? 1 : 0,
+                boxShadow: photo.selected ? '0 0 8px rgba(201,169,110,0.7)' : 'none',
+                transform: photo.selected ? 'scale(1)' : 'scale(0.4)',
+                transition: 'opacity 250ms ease, transform 250ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 250ms ease',
+              }}
+            />
           </div>
         </div>
 
-        {/* Next */}
         <button
-          className="absolute right-4 z-10 flex items-center justify-center w-10 h-10 text-stone-600 hover:text-white transition-colors disabled:opacity-20 disabled:cursor-default cursor-default"
+          className="absolute right-4 z-10 flex items-center justify-center w-11 h-11 rounded-full text-stone-500 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20 disabled:cursor-default cursor-default"
+          style={{ backdropFilter: 'blur(8px)' }}
           onClick={(e) => { e.stopPropagation(); goNext() }}
           disabled={index === photos.length - 1}
           aria-label="Next photo"
         >
-          <ChevronRight size={28} strokeWidth={1} />
+          <ChevronRight size={24} strokeWidth={1.25} />
         </button>
       </div>
 
-      {/* Bottom bar */}
-      <footer className="flex items-center justify-between px-5 h-14 border-t border-stone-900 shrink-0">
+      {/* Footer — softer separator */}
+      <footer className="flex items-center justify-between px-5 h-14 shrink-0 border-t border-white/[0.05]">
         <button
           onClick={() => onToggleSelect(photo.id)}
-          className={`group flex items-center gap-2 text-sm font-sans transition-colors ${
-            photo.selected
-              ? 'text-accent'
-              : 'text-stone-500 hover:text-stone-200'
+          className={`group flex items-center gap-2.5 text-sm font-sans transition-colors duration-200 ${
+            photo.selected ? 'text-accent' : 'text-stone-500 hover:text-stone-200'
           }`}
         >
           <Heart
             size={15}
             strokeWidth={photo.selected ? 0 : 1.5}
-            className={`transition-all ${photo.selected ? 'fill-accent' : 'group-hover:fill-stone-200 group-hover:stroke-stone-200'}`}
+            style={{
+              fill: photo.selected ? '#C9A96E' : 'transparent',
+              transition: 'fill 250ms ease, transform 200ms cubic-bezier(0.34,1.56,0.64,1)',
+              transform: photo.selected ? 'scale(1.15)' : 'scale(1)',
+            }}
           />
           {photo.selected ? 'Selected' : 'Select'}
         </button>
 
-        {/* Keyboard hints */}
-        <div className="hidden md:flex items-center gap-4 text-[11px] text-stone-800 font-sans">
+        <div className="hidden md:flex items-center gap-4 text-[11px] text-stone-800 font-sans select-none">
           <span>← → navigate</span>
-          <span>F favorite</span>
+          <span>F select</span>
           <span>ESC close</span>
         </div>
       </footer>

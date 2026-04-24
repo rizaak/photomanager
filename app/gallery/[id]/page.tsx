@@ -33,8 +33,8 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#1C1917' }}>
-      {/* Header — slightly darker than body for contrast */}
-      <header className="border-b border-white/5 px-6 py-4 shrink-0" style={{ backgroundColor: '#141210' }}>
+      {/* Header */}
+      <header className="border-b border-white/[0.05] px-6 py-3 shrink-0" style={{ backgroundColor: '#141210' }}>
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
           <div>
             <p className="text-[11px] text-stone-500 font-sans uppercase tracking-[0.15em] mb-0.5">
@@ -47,13 +47,6 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
           </p>
         </div>
       </header>
-
-      {/* Instruction strip */}
-      <div className="border-b border-white/[0.04] px-6 py-2.5 shrink-0" style={{ backgroundColor: '#191714' }}>
-        <p className="text-[11px] text-stone-600 font-sans text-center tracking-wide">
-          Click any photo to open it &nbsp;·&nbsp; Select your favorites &nbsp;·&nbsp; Submit when ready
-        </p>
-      </div>
 
       {/* Gallery — padded so shadows can breathe */}
       <div className="flex-1 p-3 sm:p-4">
