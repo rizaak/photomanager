@@ -64,25 +64,31 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ id: st
         />
       </div>
 
-      {/* Sticky selection footer */}
-      <div className="sticky bottom-0 backdrop-blur-md border-t border-white/5 px-6 py-4 shrink-0" style={{ backgroundColor: 'rgba(20,18,16,0.96)' }}>
+      {/* Selection bar — slides up on first select, away when empty */}
+      <div
+        className="sticky bottom-0 shrink-0 border-t border-white/[0.06] px-6 py-3"
+        style={{
+          backgroundColor: 'rgba(20,18,16,0.72)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          transform: selectedIds.length === 0 ? 'translateY(110%)' : 'translateY(0)',
+          opacity: selectedIds.length === 0 ? 0 : 1,
+          transition: 'transform 380ms cubic-bezier(0.32,0.72,0,1), opacity 260ms ease',
+        }}
+      >
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
           <p className="text-sm font-sans">
-            {selectedIds.length === 0 ? (
-              <span className="text-stone-600">No photos selected yet</span>
-            ) : (
-              <>
-                <span className="text-accent font-medium tabular-nums">{selectedIds.length}</span>
-                <span className="text-stone-400"> {selectedIds.length === 1 ? 'photo' : 'photos'} selected</span>
-              </>
-            )}
+            <span className="text-accent font-medium tabular-nums">{selectedIds.length}</span>
+            <span className="text-stone-500">
+              {' '}{selectedIds.length === 1 ? 'photo' : 'photos'} selected
+            </span>
           </p>
 
           <Button
             variant="primary"
             size="md"
-            disabled={selectedIds.length === 0}
             onClick={() => setSubmitted(true)}
+            style={{ boxShadow: '0 0 28px rgba(201,169,110,0.2)' }}
           >
             Submit Selection
             <ArrowRight size={14} strokeWidth={2} />

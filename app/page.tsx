@@ -2,6 +2,67 @@ import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { ArrowRight, Lock, Zap, Download } from 'lucide-react'
 
+// ─── Hero background grid ────────────────────────────────────────────────────
+
+// Each column has different photos and a different scroll speed for parallax depth.
+// Cells are duplicated inside the column so translateY(-50%) loops seamlessly.
+
+const heroCol1 = [
+  { color: 'bg-stone-400', ratio: '2/3' },
+  { color: 'bg-stone-700', ratio: '3/2' },
+  { color: 'bg-stone-300', ratio: '4/5' },
+  { color: 'bg-stone-800', ratio: '2/3' },
+  { color: 'bg-stone-500', ratio: '1/1' },
+  { color: 'bg-stone-600', ratio: '3/2' },
+  { color: 'bg-stone-300', ratio: '4/5' },
+]
+
+const heroCol2 = [
+  { color: 'bg-stone-600', ratio: '3/2' },
+  { color: 'bg-stone-300', ratio: '2/3' },
+  { color: 'bg-stone-800', ratio: '1/1' },
+  { color: 'bg-stone-400', ratio: '4/5' },
+  { color: 'bg-stone-200', ratio: '2/3' },
+  { color: 'bg-stone-700', ratio: '3/2' },
+  { color: 'bg-stone-500', ratio: '2/3' },
+]
+
+const heroCol3 = [
+  { color: 'bg-stone-800', ratio: '4/5' },
+  { color: 'bg-stone-300', ratio: '2/3' },
+  { color: 'bg-stone-600', ratio: '3/2' },
+  { color: 'bg-stone-400', ratio: '2/3' },
+  { color: 'bg-stone-700', ratio: '1/1' },
+  { color: 'bg-stone-200', ratio: '3/2' },
+  { color: 'bg-stone-500', ratio: '4/5' },
+]
+
+function HeroColumn({
+  cells,
+  duration,
+}: {
+  cells: { color: string; ratio: string }[]
+  duration: number
+}) {
+  // Duplicate cells so the loop is seamless at translateY(-50%)
+  const all = [...cells, ...cells]
+  return (
+    <div className="flex-1 overflow-hidden">
+      <div style={{ animation: `heroScrollUp ${duration}s linear infinite` }}>
+        {all.map((cell, i) => (
+          <div
+            key={i}
+            className={`${cell.color} w-full mb-2 rounded`}
+            style={{ aspectRatio: cell.ratio }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Page data ───────────────────────────────────────────────────────────────
+
 const features = [
   {
     icon: Lock,
@@ -19,34 +80,60 @@ const features = [
     icon: Download,
     title: 'Controlled delivery',
     description:
-      'Enable downloads only when you\'re ready. Clients download their final selections via secure signed links.',
+      "Enable downloads only when you're ready. Clients download their final selections via secure signed links.",
   },
 ]
 
 const steps = [
   {
     title: 'Upload your photos',
-    description: 'Drag and drop an entire session into your gallery. We handle compression, watermarking, and delivery.',
+    description:
+      'Drag and drop an entire session into your gallery. We handle compression, watermarking, and delivery.',
   },
   {
     title: 'Share with your client',
-    description: 'Send a private link. Your client browses their gallery, marks favorites, and submits their selections.',
+    description:
+      'Send a private link. Your client browses their gallery, marks favorites, and submits their selections.',
   },
   {
     title: 'Deliver with confidence',
-    description: 'Enable downloads when you\'re ready. Files are delivered securely — no third-party platforms needed.',
+    description:
+      "Enable downloads when you're ready. Files are delivered securely — no third-party platforms needed.",
   },
 ]
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-stone-950">
       <Navbar theme="dark" />
 
-      {/* Hero */}
-      <section className="min-h-screen flex items-center bg-stone-950 pt-16">
-        <div className="max-w-6xl mx-auto px-6 py-28 w-full">
-          <div className="max-w-3xl">
+      {/* ── Hero ── */}
+      <section className="min-h-screen relative flex items-center overflow-hidden bg-stone-950 pt-16">
+
+        {/* Animated photo grid — right side, different opacity per breakpoint */}
+        <div className="absolute right-0 top-0 bottom-0 w-full md:w-[62%] flex gap-2 px-2 opacity-[0.22] md:opacity-50 pointer-events-none">
+          <HeroColumn cells={heroCol1} duration={22} />
+          <HeroColumn cells={heroCol2} duration={31} />
+          <HeroColumn cells={heroCol3} duration={26} />
+        </div>
+
+        {/* Left gradient — keeps text readable, photos fade in from center-right */}
+        <div
+          className="absolute inset-0 z-10 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to right, #0c0a09 0%, #0c0a09 38%, rgba(12,10,9,0.92) 58%, rgba(12,10,9,0.3) 80%, transparent 100%)',
+          }}
+        />
+        {/* Top + bottom fades so photos don't hard-clip at nav / fold */}
+        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-stone-950 to-transparent z-10 pointer-events-none" />
+        <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-stone-950 to-transparent z-10 pointer-events-none" />
+
+        {/* Text content — z-20 so it sits above all gradient layers */}
+        <div className="relative z-20 max-w-6xl mx-auto px-6 py-28 w-full">
+          <div className="max-w-xl">
             <p className="text-accent text-xs font-sans tracking-[0.2em] uppercase mb-10">
               Private Gallery Platform
             </p>
@@ -76,22 +163,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Gallery preview strip */}
-      <section className="bg-stone-900 py-1">
-        <div className="flex gap-1 overflow-hidden h-48">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className={`flex-shrink-0 flex-1 ${
-                ['bg-stone-700', 'bg-stone-600', 'bg-stone-800', 'bg-stone-700',
-                 'bg-stone-500', 'bg-stone-800', 'bg-stone-600', 'bg-stone-700'][i]
-              }`}
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* Features */}
+      {/* ── Features ── */}
       <section className="bg-stone-50 py-32">
         <div className="max-w-6xl mx-auto px-6">
           <div className="mb-20 max-w-xl">
@@ -117,7 +189,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* ── How it works ── */}
       <section id="how-it-works" className="bg-white py-32">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-20">
@@ -138,7 +210,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonial / Proof */}
+      {/* ── Testimonial ── */}
       <section className="bg-stone-100 py-24">
         <div className="max-w-3xl mx-auto px-6 text-center">
           <blockquote>
@@ -152,7 +224,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Final CTA */}
+      {/* ── Final CTA ── */}
       <section id="pricing" className="bg-stone-950 py-32">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <h2 className="font-serif text-4xl md:text-5xl text-white mb-6">
@@ -172,7 +244,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ── Footer ── */}
       <footer className="bg-stone-950 border-t border-stone-900 py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="font-serif text-stone-600 text-sm">© 2026 Frame</span>
