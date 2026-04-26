@@ -5,8 +5,9 @@ import { ArrowDownToLine, Loader2, Check, RotateCcw, Send, CheckCheck, Lock } fr
 import { GalleryGrid } from '@/components/gallery/GalleryGrid'
 import type { Photo } from '@/lib/types'
 
-type ZipPhase  = 'idle' | 'preparing' | 'ready' | 'failed'
-type PagePhase = 'resolving' | 'password' | 'register' | 'loading' | 'ready' | 'error'
+type ZipPhase     = 'idle' | 'preparing' | 'ready' | 'failed'
+type FinalsPhase  = 'idle' | 'fetching' | 'done' | 'failed'
+type PagePhase    = 'resolving' | 'password' | 'register' | 'loading' | 'ready' | 'error'
 
 const HIDE_DELAY = 3800
 
@@ -52,6 +53,7 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
   const [uiVisible,     setUiVisible]     = useState(true)
   const [zipPhase,      setZipPhase]      = useState<ZipPhase>('idle')
   const [zipDownloadId, setZipDownloadId] = useState<string | null>(null)
+  const [finalsPhase,   setFinalsPhase]   = useState<FinalsPhase>('idle')
   const [isSubmitted,   setIsSubmitted]   = useState(false)
   const [submitting,    setSubmitting]    = useState(false)
 
@@ -241,6 +243,33 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
     } catch { setZipPhase('failed') }
   }
 
+  async function handleDownloadFinals() {
+    if (!galleryId || finalsPhase === 'fetching') return
+    setFinalsPhase('fetching')
+    try {
+      const res = await fetch(`/api/galleries/${galleryId}/finals`, { headers: clientHeaders() })
+      if (!res.ok) { setFinalsPhase('failed'); return }
+
+      const data: { photos: { photoId: string; filename: string; url: string }[] } = await res.json()
+
+      // Trigger each file download sequentially with a small delay so the browser handles them
+      for (let i = 0; i < data.photos.length; i++) {
+        const { url, filename } = data.photos[i]
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            const a = document.createElement('a')
+            a.href = url; a.download = filename; a.rel = 'noopener noreferrer'
+            document.body.appendChild(a); a.click(); document.body.removeChild(a)
+            resolve()
+          }, i * 300)
+        })
+      }
+
+      setFinalsPhase('done')
+      setTimeout(() => setFinalsPhase('idle'), 3000)
+    } catch { setFinalsPhase('failed') }
+  }
+
   async function handleSubmit() {
     if (!galleryId || submitting || isSubmitted || selectedIds.length === 0) return
     setSubmitting(true)
@@ -411,17 +440,34 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
             )}
 
             {allowDownload && (
-              <button
-                onClick={zipPhase === 'failed' || zipPhase === 'idle' ? handleRequestZip : undefined}
-                disabled={zipPhase === 'preparing' || zipPhase === 'ready'}
-                className="pt-px text-stone-500 hover:text-stone-300 disabled:pointer-events-none transition-colors duration-200"
-                aria-label="Download selected photos"
-              >
-                {zipPhase === 'idle'      && <ArrowDownToLine size={14} strokeWidth={1.5} />}
-                {zipPhase === 'preparing' && <Loader2         size={14} strokeWidth={1.5} className="animate-spin" />}
-                {zipPhase === 'ready'     && <Check           size={14} strokeWidth={1.5} style={{ color: '#C9A96E' }} />}
-                {zipPhase === 'failed'    && <RotateCcw       size={14} strokeWidth={1.5} style={{ color: '#ef4444' }} />}
-              </button>
+              <>
+                {/* Finals download — individual signed files */}
+                <button
+                  onClick={finalsPhase === 'idle' || finalsPhase === 'failed' ? handleDownloadFinals : undefined}
+                  disabled={finalsPhase === 'fetching' || finalsPhase === 'done'}
+                  className="pt-px text-stone-500 hover:text-stone-300 disabled:pointer-events-none transition-colors duration-200 flex items-center gap-1"
+                  aria-label="Download final photos"
+                  title="Download final edited photos"
+                >
+                  {finalsPhase === 'idle'     && <ArrowDownToLine size={14} strokeWidth={1.5} />}
+                  {finalsPhase === 'fetching' && <Loader2         size={14} strokeWidth={1.5} className="animate-spin" />}
+                  {finalsPhase === 'done'     && <Check           size={14} strokeWidth={1.5} style={{ color: '#C9A96E' }} />}
+                  {finalsPhase === 'failed'   && <RotateCcw       size={14} strokeWidth={1.5} style={{ color: '#ef4444' }} />}
+                </button>
+
+                {/* ZIP download — bulk selection */}
+                <button
+                  onClick={zipPhase === 'failed' || zipPhase === 'idle' ? handleRequestZip : undefined}
+                  disabled={zipPhase === 'preparing' || zipPhase === 'ready'}
+                  className="pt-px text-stone-500 hover:text-stone-300 disabled:pointer-events-none transition-colors duration-200"
+                  aria-label="Download selected photos as zip"
+                >
+                  {zipPhase === 'idle'      && <ArrowDownToLine size={14} strokeWidth={1.5} className="opacity-50" />}
+                  {zipPhase === 'preparing' && <Loader2         size={14} strokeWidth={1.5} className="animate-spin" />}
+                  {zipPhase === 'ready'     && <Check           size={14} strokeWidth={1.5} style={{ color: '#C9A96E' }} />}
+                  {zipPhase === 'failed'    && <RotateCcw       size={14} strokeWidth={1.5} style={{ color: '#ef4444' }} />}
+                </button>
+              </>
             )}
           </div>
         </div>

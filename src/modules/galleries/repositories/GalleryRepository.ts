@@ -57,9 +57,10 @@ export const GalleryRepository = {
           orderBy: { createdAt: 'desc' },
           take:    1,
           select: {
-            id:          true,
-            submittedAt: true,
-            _count:      { select: { items: true } },
+            id:            true,
+            submittedAt:   true,
+            workflowState: true,
+            _count:        { select: { items: true } },
           },
         },
       },

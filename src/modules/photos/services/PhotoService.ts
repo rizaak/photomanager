@@ -10,6 +10,20 @@ import { prisma } from '@/src/infrastructure/database/db'
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/webp'])
 const MAX_BYTES = 50 * 1024 * 1024 // 50 MB
 
+async function assertPhotoOwnership(photoId: string, photographerId: string) {
+  const photo = await prisma.photo.findUnique({ where: { id: photoId }, select: { galleryId: true } })
+  if (!photo) throw Object.assign(new Error('Photo not found'), { status: 404 })
+
+  const gallery = await prisma.gallery.findUnique({
+    where:  { id: photo.galleryId },
+    select: { photographerId: true },
+  })
+  if (!gallery || gallery.photographerId !== photographerId) {
+    throw Object.assign(new Error('Forbidden'), { status: 403 })
+  }
+  return photo
+}
+
 export const PhotoService = {
   async upload(
     file:           File,
@@ -61,38 +75,41 @@ export const PhotoService = {
     editStatus:     EditStatus,
     photographerId: string,
   ): Promise<void> {
-    const photo = await prisma.photo.findUnique({ where: { id: photoId }, select: { galleryId: true } })
-    if (!photo) throw Object.assign(new Error('Photo not found'), { status: 404 })
-
-    const gallery = await prisma.gallery.findUnique({
-      where:  { id: photo.galleryId },
-      select: { photographerId: true },
-    })
-    if (!gallery || gallery.photographerId !== photographerId) {
-      throw Object.assign(new Error('Forbidden'), { status: 403 })
-    }
-
+    await assertPhotoOwnership(photoId, photographerId)
     await PhotoRepository.updateEditStatus(photoId, editStatus)
   },
 
+  async uploadFinal(
+    photoId:        string,
+    file:           File,
+    photographerId: string,
+  ): Promise<{ finalUrl: string }> {
+    if (!ALLOWED_TYPES.has(file.type)) {
+      throw Object.assign(new Error('Invalid file type. Allowed: JPG, PNG, HEIC, WEBP'), { status: 422 })
+    }
+    if (file.size > MAX_BYTES) {
+      throw Object.assign(new Error('File exceeds 50 MB limit'), { status: 422 })
+    }
+
+    await assertPhotoOwnership(photoId, photographerId)
+
+    const ext      = file.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    const finalKey = `photos/finals/${photoId}.${ext}`
+    const buffer   = Buffer.from(await file.arrayBuffer())
+
+    await storageProvider.upload(finalKey, buffer, file.type)
+    await PhotoRepository.updateFinalKey(photoId, finalKey)
+
+    const finalUrl = await storageProvider.getSignedUrl(finalKey, 3600)
+    return { finalUrl }
+  },
+
   async assignSection(
-    photoId: string,
-    sectionId: string | null,
+    photoId:        string,
+    sectionId:      string | null,
     photographerId: string,
   ): Promise<void> {
-    const photo = await prisma.photo.findUnique({
-      where: { id: photoId },
-      select: { galleryId: true },
-    })
-    if (!photo) throw Object.assign(new Error('Photo not found'), { status: 404 })
-
-    const gallery = await prisma.gallery.findUnique({
-      where: { id: photo.galleryId },
-      select: { photographerId: true },
-    })
-    if (!gallery || gallery.photographerId !== photographerId) {
-      throw Object.assign(new Error('Forbidden'), { status: 403 })
-    }
+    const photo = await assertPhotoOwnership(photoId, photographerId)
 
     if (sectionId !== null) {
       const section = await GallerySectionRepository.findById(sectionId)

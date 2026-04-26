@@ -1,6 +1,7 @@
 import { GalleryStatus } from '@prisma/client'
 import { GalleryRepository } from '../repositories/GalleryRepository'
 import { ClientService } from '../../clients/services/ClientService'
+import { ActivityService } from '../../activity/services/ActivityService'
 
 export interface GalleryAccess {
   id:              string
@@ -64,6 +65,11 @@ export const GalleryAccessService = {
       } else {
         return { gate: 'registration_required' }
       }
+    }
+
+    ActivityService.log(gallery.id, 'GALLERY_OPENED')
+    if (opts.name && opts.email && gallery.requireClientInfo) {
+      ActivityService.log(gallery.id, 'CLIENT_REGISTERED', { email: opts.email })
     }
 
     return {

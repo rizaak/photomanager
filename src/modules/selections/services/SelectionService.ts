@@ -3,6 +3,7 @@ import { SelectionRepository } from '../repositories/SelectionRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
 import { ClientRepository } from '../../clients/repositories/ClientRepository'
 import { QueueProvider } from '../../../infrastructure/queue/QueueProvider'
+import { ActivityService } from '../../activity/services/ActivityService'
 
 // Fallback identity used for galleries that don't require client registration
 const ANON_EMAIL = 'anonymous@gallery.local'
@@ -73,6 +74,7 @@ export const SelectionService = {
       selectionId: selection.id,
       photoCount:  photoIds.length,
     })
+    ActivityService.log(galleryId, 'SELECTION_SUBMITTED', { photoCount: photoIds.length })
 
     return { submittedAt: new Date().toISOString() }
   },

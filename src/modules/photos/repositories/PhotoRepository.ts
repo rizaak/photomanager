@@ -108,6 +108,13 @@ export const PhotoRepository = {
     await prisma.photo.update({ where: { id }, data: { editStatus } })
   },
 
+  async updateFinalKey(id: string, finalKey: string): Promise<void> {
+    await prisma.photo.update({
+      where: { id },
+      data:  { finalKey, editStatus: EditStatus.FINAL_READY },
+    })
+  },
+
   async assignSection(id: string, sectionId: string | null): Promise<void> {
     await prisma.photo.update({ where: { id }, data: { sectionId } })
   },

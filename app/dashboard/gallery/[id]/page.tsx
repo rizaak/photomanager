@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Share2, Download, Settings, Eye, CheckCheck, Upload } from 'lucide-react'
+import { ArrowLeft, Share2, Download, Settings, Eye, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { GalleryService } from '@/src/modules/galleries/services/GalleryService'
 import { GallerySectionService } from '@/src/modules/galleries/services/GallerySectionService'
 import { GalleryPhotosService } from '@/src/modules/photos/services/GalleryPhotosService'
+import { WorkflowService } from '@/src/modules/selections/services/WorkflowService'
 import { ClientService } from '@/src/modules/clients/services/ClientService'
 import { getAuthenticatedPhotographer } from '@/src/modules/auth/utils/getAuthenticatedPhotographer'
 import { DashboardPhotoGrid } from '@/components/gallery/DashboardPhotoGrid'
+import { SelectionWorkflowPanel } from '@/components/gallery/SelectionWorkflowPanel'
 import type { GalleryStatus } from '@/lib/types'
 
 export default async function GalleryManagementPage({ params }: { params: Promise<{ id: string }> }) {
@@ -18,10 +20,13 @@ export default async function GalleryManagementPage({ params }: { params: Promis
 
   if (!gallery) notFound()
 
-  const [clients, photosData, allSections] = await Promise.all([
+  const hasSubmittedSelection = !!gallery.selection?.submittedAt
+
+  const [clients, photosData, allSections, workflowData] = await Promise.all([
     ClientService.listForGallery(id),
     GalleryPhotosService.getForGallery(id),
     GallerySectionService.listForGallery(id),
+    hasSubmittedSelection ? WorkflowService.getForDashboard(id, photographerId) : Promise.resolve(null),
   ])
 
   // Flatten signed (ready) photos + pending (non-ready) for the grid
@@ -44,9 +49,6 @@ export default async function GalleryManagementPage({ params }: { params: Promis
   const totalPhotos = flatPhotos.length
   const isSubmitted = gallery.clientActivity === 'submitted'
   const sel         = gallery.selection
-  const submittedAt = sel?.submittedAt
-    ? new Date(sel.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : null
 
   return (
     <div className="min-h-screen">
@@ -94,33 +96,20 @@ export default async function GalleryManagementPage({ params }: { params: Promis
               Downloads On
             </Button>
           )}
-          <Button variant="ghost" size="sm">
-            <Settings size={14} strokeWidth={1.5} />
-          </Button>
+          <Link href={`/dashboard/gallery/${id}/settings`}>
+            <Button variant="ghost" size="sm">
+              <Settings size={14} strokeWidth={1.5} />
+            </Button>
+          </Link>
         </div>
       </header>
 
-      {/* ── Submission banner ─────────────────────────────────────────────── */}
-      {isSubmitted && sel && (
-        <div
-          className="mx-10 mt-6 px-5 py-4 flex items-center justify-between gap-6"
-          style={{ backgroundColor: 'rgba(201,169,110,0.06)', border: '1px solid rgba(201,169,110,0.25)' }}
-        >
-          <div className="flex items-center gap-3">
-            <CheckCheck size={15} strokeWidth={1.5} style={{ color: '#C9A96E' }} className="shrink-0" />
-            <p className="text-sm font-sans text-stone-700">
-              {gallery.clientName} submitted their selection
-              {submittedAt ? ` on ${submittedAt}` : ''}
-              {' '}— <span style={{ color: '#C9A96E' }}>{sel.photoCount} photo{sel.photoCount !== 1 ? 's' : ''}</span> chosen
-            </p>
-          </div>
-          {!gallery.downloadEnabled && (
-            <Button variant="primary" size="sm">
-              <Download size={13} strokeWidth={1.5} />
-              Enable Downloads
-            </Button>
-          )}
-        </div>
+      {/* ── Selection & editing workflow ──────────────────────────────────── */}
+      {workflowData && (
+        <SelectionWorkflowPanel
+          galleryId={id}
+          initialData={workflowData}
+        />
       )}
 
       {/* ── Gallery stats ─────────────────────────────────────────────────── */}

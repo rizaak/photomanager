@@ -10,7 +10,9 @@
       "Bash(node:*)",
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(p['version']\\)\")",
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(p.get\\('exports',{}\\).keys\\(\\)\\), indent=2\\)\\)\")",
-      "Skill(codex:setup)"
+      "Skill(codex:setup)",
+      "Bash(psql -d frame -c \"\\\\d \\\\\"Photo\\\\\"\")",
+      "Bash(psql:*)"
     ]
   }
 }

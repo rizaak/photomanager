@@ -9,12 +9,13 @@ export type WorkflowState = 'IN_PROGRESS' | 'COMPLETED_BY_CLIENT' | 'IN_REVIEW' 
 export type PhotoEditStatus = 'NONE' | 'EDITING' | 'FINAL_READY'
 
 export interface WorkflowPhoto {
-  id:          string
-  filename:    string
-  width:       number
-  height:      number
+  id:           string
+  filename:     string
+  width:        number
+  height:       number
   thumbnailUrl: string | null
-  editStatus:  PhotoEditStatus
+  editStatus:   PhotoEditStatus
+  hasFinal:     boolean
 }
 
 export interface WorkflowData {
@@ -42,11 +43,12 @@ export const WorkflowService = {
 
     const photos: WorkflowPhoto[] = await Promise.all(
       sel.items.map(async ({ photo }) => ({
-        id:          photo.id,
-        filename:    photo.filename,
-        width:       photo.width  ?? 3,
-        height:      photo.height ?? 2,
-        editStatus:  photo.editStatus as PhotoEditStatus,
+        id:           photo.id,
+        filename:     photo.filename,
+        width:        photo.width  ?? 3,
+        height:       photo.height ?? 2,
+        editStatus:   photo.editStatus as PhotoEditStatus,
+        hasFinal:     !!photo.finalKey,
         thumbnailUrl: photo.thumbnailKey
           ? await storageProvider.getSignedUrl(photo.thumbnailKey, URL_EXPIRY)
           : null,

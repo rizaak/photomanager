@@ -55,6 +55,23 @@ enum EditStatus {
   FINAL_READY
 }
 
+enum DownloadType {
+  NONE
+  WATERMARKED
+  FINAL_EDITED
+  ORIGINALS
+  SELECTED_ONLY
+  FULL_GALLERY
+}
+
+enum GalleryEventType {
+  GALLERY_OPENED
+  CLIENT_REGISTERED
+  PHOTO_SELECTED
+  SELECTION_SUBMITTED
+  DOWNLOAD_REQUESTED
+}
+
 // ── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -79,16 +96,17 @@ model Plan {
 }
 
 model PhotographerProfile {
-  id               String    @id @default(uuid())
-  userId           String    @unique
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String           @id @default(uuid())
+  userId           String           @unique
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   planId           String
-  plan             Plan      @relation(fields: [planId], references: [id])
+  plan             Plan             @relation(fields: [planId], references: [id])
   businessName     String?
-  storageUsedBytes BigInt    @default(0)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  storageUsedBytes BigInt           @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   galleries        Gallery[]
+  presets          GalleryPreset[]
 }
 
 model Gallery {
@@ -96,16 +114,26 @@ model Gallery {
   photographerId     String
   photographer       PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
   title              String
+  subtitle           String?
   clientName         String
   clientEmail        String?
   status             GalleryStatus       @default(DRAFT)
-  downloadEnabled    Boolean             @default(false)
-  allowSelection     Boolean             @default(true)
-  requireClientInfo  Boolean             @default(false)
+  // Access
   shareToken         String              @unique @default(uuid())
   password           String?
-  clientActivity     ClientActivity      @default(NOT_OPENED)
   expiresAt          DateTime?
+  // Client interaction
+  allowSelection     Boolean             @default(true)
+  allowFavorites     Boolean             @default(false)
+  allowComments      Boolean             @default(false)
+  requireClientInfo  Boolean             @default(false)
+  // Downloads
+  downloadEnabled    Boolean             @default(false)
+  downloadType       DownloadType        @default(NONE)
+  // Protection
+  watermarkEnabled   Boolean             @default(true)
+  // Activity
+  clientActivity     ClientActivity      @default(NOT_OPENED)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   photos             Photo[]
@@ -113,6 +141,7 @@ model Gallery {
   selections         Selection[]
   downloads          Download[]
   galleryClients     GalleryClient[]
+  activityEvents     GalleryActivityEvent[]
 
   @@index([photographerId])
   @@index([status])
@@ -161,6 +190,7 @@ model Photo {
   height         Int?
   status         PhotoStatus     @default(UPLOADING)
   editStatus     EditStatus      @default(NONE)
+  finalKey       String?
   sortOrder      Int             @default(0)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -215,4 +245,40 @@ model Download {
 
   @@index([galleryId])
   @@index([selectionId])
+}
+
+model GalleryPreset {
+  id                String              @id @default(uuid())
+  photographerId    String
+  photographer      PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  name              String
+  isDefault         Boolean             @default(false)
+  // Client interaction
+  allowSelection    Boolean             @default(true)
+  allowFavorites    Boolean             @default(false)
+  allowComments     Boolean             @default(false)
+  requireClientInfo Boolean             @default(false)
+  // Downloads
+  downloadEnabled   Boolean             @default(false)
+  downloadType      DownloadType        @default(NONE)
+  // Protection
+  watermarkEnabled  Boolean             @default(true)
+  // Access
+  expiresInDays     Int?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([photographerId])
+}
+
+model GalleryActivityEvent {
+  id        String           @id @default(uuid())
+  galleryId String
+  gallery   Gallery          @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  eventType GalleryEventType
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([galleryId])
+  @@index([galleryId, eventType])
 }

@@ -82,6 +82,7 @@ export const SelectionRepository = {
                 id:            true,
                 filename:      true,
                 thumbnailKey:  true,
+                finalKey:      true,
                 width:         true,
                 height:        true,
                 editStatus:    true,

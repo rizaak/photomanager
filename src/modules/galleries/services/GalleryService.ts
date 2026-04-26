@@ -65,9 +65,10 @@ export const GalleryService = {
       photoCount:      gallery._count.photos,
       selection: sel
         ? {
-            id:          sel.id,
-            photoCount:  sel._count.items,
-            submittedAt: sel.submittedAt?.toISOString() ?? null,
+            id:            sel.id,
+            photoCount:    sel._count.items,
+            submittedAt:   sel.submittedAt?.toISOString() ?? null,
+            workflowState: sel.workflowState as string,
           }
         : null,
     }
