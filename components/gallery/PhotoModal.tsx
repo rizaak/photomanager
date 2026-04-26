@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { X, ChevronLeft, ChevronRight, Heart } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Heart, Download } from 'lucide-react'
 import type { Photo } from '@/lib/types'
 
 interface PhotoModalProps {
@@ -34,6 +34,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
   const [index, setIndex] = useState(initialIndex)
   const [fading, setFading] = useState(false)
   const [chromeVisible, setChromeVisible] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   const chromeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   // Swipe tracking
@@ -41,6 +42,27 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
   const swipeFired = useRef(false)
 
   const photo = photos[index]
+
+  async function handleDownload() {
+    if (downloading) return
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/photos/${photo.id}/download`)
+      if (!res.ok) throw new Error('Download failed')
+      const { url } = await res.json()
+      const a = document.createElement('a')
+      a.href = url
+      a.download = photo.filename ?? photo.id
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch {
+      // silently ignore — user can retry
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   // ── Chrome auto-hide ─────────────────────────────────────────────────────
   const revealChrome = useCallback(() => {
@@ -51,7 +73,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
 
   const chromeFade: React.CSSProperties = {
     opacity: chromeVisible ? 1 : 0,
-    transition: 'opacity 550ms ease',
+    transition: 'opacity 700ms ease',
     pointerEvents: chromeVisible ? 'auto' : 'none',
   }
 
@@ -123,7 +145,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
   return (
     <div
       className="fixed inset-0 z-50"
-      style={{ backgroundColor: '#0D0C0B', animation: 'modalReveal 520ms cubic-bezier(0.22,1,0.36,1) forwards' }}
+      style={{ backgroundColor: '#0D0C0B', animation: 'modalReveal 680ms cubic-bezier(0.22,1,0.36,1) forwards' }}
       // Any mouse movement or touch reveals chrome
       onMouseMove={revealChrome}
       onTouchStart={revealChrome}
@@ -170,7 +192,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
             className="w-10 h-10 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/[0.07] transition-all duration-200 disabled:opacity-20"
             style={{ backdropFilter: 'blur(8px)' }}
           >
-            <ChevronLeft size={22} strokeWidth={1.25} />
+            <ChevronLeft size={18} strokeWidth={1.25} />
           </div>
         </button>
 
@@ -180,18 +202,33 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           onClick={(e) => e.stopPropagation()}
           style={{
             opacity: fading ? 0 : 1,
+            // Fast exit, slow entrance — like a breath
             transition: fading
-              ? 'opacity 160ms ease-in'
-              : 'opacity 340ms cubic-bezier(0.22,1,0.36,1)',
+              ? 'opacity 180ms ease-in'
+              : 'opacity 480ms cubic-bezier(0.22,1,0.36,1)',
           }}
         >
           <div className={`${photo.placeholderColor} relative`} style={getPhotoStyle(photo)}>
-            {/* Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
-              <span className="text-white/[0.04] font-serif text-6xl rotate-[-30deg] tracking-[0.3em]">
-                FRAME
-              </span>
-            </div>
+            {/* Real watermarked image — baked-in FRAME watermark from worker */}
+            {photo.watermarkedUrl && (
+              <img
+                src={photo.watermarkedUrl}
+                alt=""
+                draggable={false}
+                className="absolute inset-0 w-full h-full object-contain opacity-0"
+                style={{ transition: 'opacity 500ms ease' }}
+                onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '1' }}
+              />
+            )}
+
+            {/* CSS watermark fallback — only for photos not yet processed */}
+            {!photo.watermarkedUrl && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
+                <span className="text-white/[0.04] font-serif text-6xl rotate-[-30deg] tracking-[0.3em]">
+                  FRAME
+                </span>
+              </div>
+            )}
 
             {/* Selection dot — minimal, no button chrome */}
             <div
@@ -200,7 +237,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
                 opacity: photo.selected ? 1 : 0,
                 boxShadow: photo.selected ? '0 0 8px rgba(201,169,110,0.7)' : 'none',
                 transform: photo.selected ? 'scale(1)' : 'scale(0.4)',
-                transition: 'opacity 250ms ease, transform 250ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 250ms ease',
+                transition: 'opacity 400ms ease, transform 400ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 400ms ease',
               }}
             />
           </div>
@@ -218,7 +255,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
             className="w-10 h-10 rounded-full flex items-center justify-center text-stone-400 hover:text-white hover:bg-white/[0.07] transition-all duration-200"
             style={{ backdropFilter: 'blur(8px)' }}
           >
-            <ChevronRight size={22} strokeWidth={1.25} />
+            <ChevronRight size={18} strokeWidth={1.25} />
           </div>
         </button>
       </div>
@@ -232,30 +269,41 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           pointerEvents: chromeVisible ? 'auto' : 'none',
         }}
       >
+        {/* Heart only — filled state communicates selection without a label */}
         <button
           onClick={() => onToggleSelect(photo.id)}
-          className={`group flex items-center gap-2.5 text-sm font-sans transition-colors duration-200 ${
-            photo.selected ? 'text-accent' : 'text-stone-500 hover:text-stone-200'
+          className={`transition-colors duration-200 ${
+            photo.selected ? 'text-accent' : 'text-stone-500 hover:text-stone-300'
           }`}
+          aria-label={photo.selected ? 'Deselect photo' : 'Select photo'}
         >
           <Heart
-            size={15}
-            strokeWidth={photo.selected ? 0 : 1.5}
+            size={18}
+            strokeWidth={photo.selected ? 0 : 1.25}
             style={{
               fill: photo.selected ? '#C9A96E' : 'transparent',
-              transition: 'fill 250ms ease, transform 200ms cubic-bezier(0.34,1.56,0.64,1)',
-              transform: photo.selected ? 'scale(1.15)' : 'scale(1)',
+              transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+              transform: photo.selected ? 'scale(1.18)' : 'scale(1)',
             }}
           />
-          {photo.selected ? 'Selected' : 'Select'}
         </button>
 
-        {/* Keyboard hints — desktop only, very dim */}
-        <div className="hidden md:flex items-center gap-4 text-[11px] text-stone-800 font-sans select-none">
-          <span>← → navigate</span>
-          <span>F select</span>
-          <span>ESC close</span>
-        </div>
+        {/* Download — fetches a short-lived signed URL, never exposes raw R2 path */}
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="text-stone-500 hover:text-stone-300 transition-colors duration-200 disabled:opacity-40"
+          aria-label="Download original"
+        >
+          <Download
+            size={17}
+            strokeWidth={1.25}
+            style={{
+              transform: downloading ? 'translateY(2px)' : 'translateY(0)',
+              transition: 'transform 300ms ease',
+            }}
+          />
+        </button>
       </footer>
     </div>
   )

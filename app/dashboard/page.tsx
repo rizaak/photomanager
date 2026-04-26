@@ -2,10 +2,11 @@ import Link from 'next/link'
 import { Plus, Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { GalleryCard } from '@/components/gallery/GalleryCard'
+import { GalleryService } from '@/src/modules/galleries/services/GalleryService'
+import { getAuthenticatedPhotographer } from '@/src/modules/auth/utils/getAuthenticatedPhotographer'
 import { getGalleryAction } from '@/lib/gallery-utils'
-import { mockGalleries } from '@/lib/mock-data'
+import type { Gallery } from '@/lib/types'
 
-// Priority order: action-needed galleries float to the top
 const ACTION_PRIORITY: Record<string, number> = {
   deliver:   0,
   selecting: 1,
@@ -15,18 +16,20 @@ const ACTION_PRIORITY: Record<string, number> = {
   archived:  5,
 }
 
-function sortByPriority<T extends (typeof mockGalleries)[0]>(galleries: T[]) {
+function sortByPriority(galleries: Gallery[]) {
   return [...galleries].sort(
     (a, b) => (ACTION_PRIORITY[getGalleryAction(a)] ?? 9) - (ACTION_PRIORITY[getGalleryAction(b)] ?? 9),
   )
 }
 
-export default function DashboardPage() {
-  const active   = sortByPriority(mockGalleries.filter((g) => g.status === 'active'))
-  const drafts   = mockGalleries.filter((g) => g.status === 'draft')
-  const archived = mockGalleries.filter((g) => g.status === 'archived')
+export default async function DashboardPage() {
+  const photographerId = await getAuthenticatedPhotographer()
+  const all = await GalleryService.listGalleries(photographerId)
 
-  // Galleries where the client finished but the photographer hasn't unlocked download
+  const active   = sortByPriority(all.filter((g) => g.status === 'active'))
+  const drafts   = all.filter((g) => g.status === 'draft')
+  const archived = all.filter((g) => g.status === 'archived')
+
   const readyToDeliver = active.filter(
     (g) => !g.downloadEnabled && g.clientActivity === 'submitted',
   )
@@ -38,9 +41,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-serif text-3xl text-stone-900 mb-1">Your Galleries</h1>
-          <p className="text-sm text-stone-400 font-sans">{mockGalleries.length} galleries</p>
+          <p className="text-sm text-stone-400 font-sans">{all.length} galleries</p>
         </div>
-        <Link href="/dashboard/upload">
+        <Link href="/dashboard/new-gallery">
           <Button variant="primary" size="md">
             <Plus size={15} strokeWidth={2} />
             New Gallery
@@ -48,8 +51,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* ── Attention strip ── */}
-      {/* Only shown when action is genuinely required — not informational noise */}
+      {/* ── Attention strip — client finished selecting ── */}
       {readyToDeliver.length > 0 && (
         <div
           className="mb-8 px-5 py-4 flex items-center justify-between gap-6"
@@ -107,6 +109,19 @@ export default function DashboardPage() {
             {archived.map((g) => <GalleryCard key={g.id} gallery={g} />)}
           </div>
         </section>
+      )}
+
+      {all.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-32 gap-3">
+          <p className="font-serif text-stone-400 text-lg">No galleries yet</p>
+          <p className="text-sm text-stone-400 font-sans">Create your first gallery to get started</p>
+          <Link href="/dashboard/new-gallery" className="mt-2">
+            <Button variant="primary" size="md">
+              <Plus size={15} strokeWidth={2} />
+              New Gallery
+            </Button>
+          </Link>
+        </div>
       )}
     </div>
   )

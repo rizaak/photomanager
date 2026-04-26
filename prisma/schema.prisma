@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+enum PlanName {
+  FREE
+  PRO
+  STUDIO
+}
+
+enum GalleryStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ClientActivity {
+  NOT_OPENED
+  SELECTING
+  SUBMITTED
+}
+
+enum PhotoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum DownloadStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum SelectionWorkflow {
+  IN_PROGRESS
+  COMPLETED_BY_CLIENT
+  IN_REVIEW
+  EDITING
+  DELIVERED
+}
+
+enum EditStatus {
+  NONE
+  EDITING
+  FINAL_READY
+}
+
+// ── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  auth0Sub     String?             @unique
+  name         String
+  passwordHash String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  profile      PhotographerProfile?
+}
+
+/// Subscription plan definition — rows seeded at deploy time
+model Plan {
+  id             String              @id @default(uuid())
+  name           PlanName            @unique
+  storageLimitGB Int
+  maxGalleries   Int?                // null = unlimited
+  createdAt      DateTime            @default(now())
+  photographers  PhotographerProfile[]
+}
+
+model PhotographerProfile {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan      @relation(fields: [planId], references: [id])
+  businessName     String?
+  storageUsedBytes BigInt    @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  galleries        Gallery[]
+}
+
+model Gallery {
+  id                 String              @id @default(uuid())
+  photographerId     String
+  photographer       PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  title              String
+  clientName         String
+  clientEmail        String?
+  status             GalleryStatus       @default(DRAFT)
+  downloadEnabled    Boolean             @default(false)
+  allowSelection     Boolean             @default(true)
+  requireClientInfo  Boolean             @default(false)
+  shareToken         String              @unique @default(uuid())
+  password           String?
+  clientActivity     ClientActivity      @default(NOT_OPENED)
+  expiresAt          DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  photos             Photo[]
+  sections           GallerySection[]
+  selections         Selection[]
+  downloads          Download[]
+  galleryClients     GalleryClient[]
+
+  @@index([photographerId])
+  @@index([status])
+}
+
+model GallerySection {
+  id        String   @id @default(uuid())
+  galleryId String
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  title     String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  photos    Photo[]
+
+  @@index([galleryId])
+}
+
+model GalleryClient {
+  id          String    @id @default(uuid())
+  galleryId   String
+  gallery     Gallery   @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  name        String
+  email       String
+  accessToken String    @unique @default(uuid())
+  createdAt   DateTime  @default(now())
+  selections  Selection[]
+
+  @@unique([galleryId, email])
+  @@index([galleryId])
+}
+
+model Photo {
+  id             String          @id @default(uuid())
+  galleryId      String
+  gallery        Gallery         @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  sectionId      String?
+  section        GallerySection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  filename       String
+  originalKey    String          @unique
+  previewKey     String?
+  thumbnailKey   String?
+  watermarkedKey String?
+  mimeType       String
+  sizeBytes      BigInt
+  width          Int?
+  height         Int?
+  status         PhotoStatus     @default(UPLOADING)
+  editStatus     EditStatus      @default(NONE)
+  sortOrder      Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  selectionItems SelectionItem[]
+
+  @@index([galleryId])
+  @@index([galleryId, status])
+  @@index([sectionId])
+}
+
+model Selection {
+  id              String         @id @default(uuid())
+  galleryId       String
+  gallery         Gallery        @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  galleryClientId String?
+  galleryClient   GalleryClient? @relation(fields: [galleryClientId], references: [id], onDelete: SetNull)
+  clientEmail     String?
+  clientName      String?
+  submittedAt     DateTime?
+  workflowState   SelectionWorkflow @default(IN_PROGRESS)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  items           SelectionItem[]
+  downloads       Download[]
+
+  @@index([galleryId])
+  @@index([galleryClientId])
+}
+
+model SelectionItem {
+  id          String    @id @default(uuid())
+  selectionId String
+  selection   Selection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  photoId     String
+  photo       Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([selectionId, photoId])
+  @@index([photoId])
+}
+
+model Download {
+  id          String         @id @default(uuid())
+  galleryId   String
+  gallery     Gallery        @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  selectionId String?
+  selection   Selection?     @relation(fields: [selectionId], references: [id])
+  status      DownloadStatus @default(PENDING)
+  zipKey      String?
+  expiresAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([galleryId])
+  @@index([selectionId])
+}

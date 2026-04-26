@@ -36,6 +36,7 @@
 - Use signed URLs for downloads.
 - Validate file types and file sizes.
 - Keep galleries private by default.
+- Follow docs/PHOTO_PROTECTION.md when handling gallery images, downloads, previews, and storage URLs.
 
 ## Performance
 - Do not process images inside controllers.

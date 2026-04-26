@@ -32,15 +32,15 @@
   to   { opacity: 1; }
 }
 
-/* Staggered gallery entrance — barely perceptible drift upward */
+/* Staggered gallery entrance — barely perceptible lift */
 @keyframes photoReveal {
-  from { opacity: 0; transform: scale(0.978) translateY(10px); }
-  to   { opacity: 1; transform: scale(1)     translateY(0);   }
+  from { opacity: 0; transform: scale(0.982) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)     translateY(0);  }
 }
 
-/* Modal open — gentle zoom-back, like a camera pulling focus */
+/* Modal open — camera pulling focus, imperceptible scale */
 @keyframes modalReveal {
-  from { opacity: 0; transform: scale(1.045); }
+  from { opacity: 0; transform: scale(1.018); }
   to   { opacity: 1; transform: scale(1);     }
 }
 
@@ -62,14 +62,6 @@
 
 @keyframes checkPop {
   0%   { transform: scale(0);    opacity: 0; }
-  55%  { transform: scale(1.25); opacity: 1; }
+  60%  { transform: scale(1.08); opacity: 1; }
   100% { transform: scale(1);    opacity: 1; }
-}
-
-/* Haptic-like compress → spring when selecting a photo */
-@keyframes selectPulse {
-  0%   { transform: scale(1); }
-  30%  { transform: scale(0.952); }
-  65%  { transform: scale(1.018); }
-  100% { transform: scale(1); }
 }

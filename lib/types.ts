@@ -6,6 +6,7 @@ export type Plan = 'free' | 'pro' | 'studio'
 
 export interface Gallery {
   id: string
+  shareToken?: string
   title: string
   clientName: string
   photoCount: number
@@ -27,6 +28,8 @@ export interface Photo {
   status: PhotoStatus
   selected: boolean
   placeholderColor: string
+  thumbnailUrl?: string
+  watermarkedUrl?: string
 }
 
 export interface Photographer {

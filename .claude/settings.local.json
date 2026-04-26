@@ -3,7 +3,14 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npm list:*)",
+      "Bash(node:*)",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(p['version']\\)\")",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(p.get\\('exports',{}\\).keys\\(\\)\\), indent=2\\)\\)\")",
+      "Skill(codex:setup)"
     ]
   }
 }

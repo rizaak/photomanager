@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react'
 import type { UploadFile } from '@/lib/types'
 
 interface UploadZoneProps {
-  initialFiles?: UploadFile[]
+  galleryId: string
+  onComplete?: () => void
 }
 
 const statusIcon: Record<UploadFile['status'], React.ReactNode> = {
@@ -17,15 +18,101 @@ const statusIcon: Record<UploadFile['status'], React.ReactNode> = {
 
 const statusLabel: Record<UploadFile['status'], string> = {
   ready:      'Ready',
-  processing: 'Processing',
+  processing: 'Queued',
   uploading:  'Uploading',
   error:      'Error',
 }
 
-export function UploadZone({ initialFiles = [] }: UploadZoneProps) {
+function uploadFileXHR(
+  file: File,
+  galleryId: string,
+  onProgress: (pct: number) => void,
+): Promise<{ photoId: string } | { error: string }> {
+  return new Promise((resolve) => {
+    const formData = new FormData()
+    formData.append('galleryId', galleryId)
+    formData.append('file', file)
+
+    const xhr = new XMLHttpRequest()
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        // Cap at 90% — the remaining 10% represents server-side DB + queue work
+        onProgress(Math.min(Math.round((e.loaded / e.total) * 90), 90))
+      }
+    }
+
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText)
+        if (xhr.status === 200) {
+          resolve({ photoId: data.photoId })
+        } else {
+          resolve({ error: data.error ?? 'Upload failed' })
+        }
+      } catch {
+        resolve({ error: 'Invalid server response' })
+      }
+    }
+
+    xhr.onerror = () => resolve({ error: 'Network error' })
+    xhr.ontimeout = () => resolve({ error: 'Request timed out' })
+    xhr.timeout = 120_000 // 2 min — large files need time
+
+    xhr.open('POST', '/api/photos/upload')
+    xhr.send(formData)
+  })
+}
+
+export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles] = useState<UploadFile[]>(initialFiles)
+  const [files, setFiles] = useState<UploadFile[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+
+  function updateFile(id: string, patch: Partial<UploadFile>) {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+  }
+
+  const startUpload = useCallback(
+    async (selected: FileList | File[]) => {
+      if (!galleryId || galleryId === 'new') {
+        alert('Please select a gallery before uploading.')
+        return
+      }
+
+      const incoming = Array.from(selected)
+      if (incoming.length === 0) return
+
+      // Add all files to the list immediately
+      const entries: UploadFile[] = incoming.map((f) => ({
+        id: crypto.randomUUID(),
+        filename: f.name,
+        sizeMB: parseFloat((f.size / 1024 / 1024).toFixed(1)),
+        status: 'uploading',
+        progress: 0,
+      }))
+      setFiles((prev) => [...prev, ...entries])
+
+      // Upload in parallel
+      await Promise.all(
+        incoming.map(async (file, i) => {
+          const entry = entries[i]
+
+          const result = await uploadFileXHR(file, galleryId, (pct) => {
+            updateFile(entry.id, { progress: pct })
+          })
+
+          if ('error' in result) {
+            updateFile(entry.id, { status: 'error', progress: 0, errorMessage: result.error })
+          } else {
+            updateFile(entry.id, { status: 'ready', progress: 100 })
+            onComplete?.()
+          }
+        }),
+      )
+    },
+    [galleryId],
+  )
 
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
@@ -39,7 +126,13 @@ export function UploadZone({ initialFiles = [] }: UploadZoneProps) {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(false)
-    // File handling will be implemented with backend
+    startUpload(e.dataTransfer.files)
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) startUpload(e.target.files)
+    // Reset input so the same file can be re-selected if needed
+    e.target.value = ''
   }
 
   function removeFile(id: string) {
@@ -66,6 +159,7 @@ export function UploadZone({ initialFiles = [] }: UploadZoneProps) {
           multiple
           accept="image/jpeg,image/png,image/heic,image/webp"
           className="sr-only"
+          onChange={handleInputChange}
         />
 
         <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
