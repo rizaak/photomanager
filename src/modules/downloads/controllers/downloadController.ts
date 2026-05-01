@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { DownloadService } from '../services/DownloadService'
+import { getAuthenticatedPhotographer } from '../../auth/utils/getAuthenticatedPhotographer'
 
 function handleError(err: unknown): NextResponse {
   const status  = (err as { status?: number }).status ?? 500
@@ -9,14 +10,18 @@ function handleError(err: unknown): NextResponse {
   return NextResponse.json({ error: 'Internal error' }, { status: 500 })
 }
 
-// GET /api/photos/[id]/download — single photo signed URL
+// GET /api/photos/[id]/download — single photo signed URL (photographer only)
 export async function handleGetDownloadUrl(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  let photographerId: string
+  try { photographerId = await getAuthenticatedPhotographer() }
+  catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+
   const { id: photoId } = await params
   try {
-    return NextResponse.json(await DownloadService.getDownloadUrl(photoId))
+    return NextResponse.json(await DownloadService.getDownloadUrl(photoId, photographerId))
   } catch (err) {
     return handleError(err)
   }

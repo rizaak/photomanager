@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { UploadCloud, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { UploadCloud, AlertCircle, Loader2, X, CheckCircle2 } from 'lucide-react'
 import type { UploadFile } from '@/lib/types'
 
 interface UploadZoneProps {
@@ -9,19 +9,8 @@ interface UploadZoneProps {
   onComplete?: () => void
 }
 
-const statusIcon: Record<UploadFile['status'], React.ReactNode> = {
-  ready:      <CheckCircle2 size={15} className="text-emerald-500" strokeWidth={1.5} />,
-  processing: <Loader2 size={15} className="text-amber-500 animate-spin" strokeWidth={1.5} />,
-  uploading:  <Loader2 size={15} className="text-stone-400 animate-spin" strokeWidth={1.5} />,
-  error:      <AlertCircle size={15} className="text-red-500" strokeWidth={1.5} />,
-}
-
-const statusLabel: Record<UploadFile['status'], string> = {
-  ready:      'Ready',
-  processing: 'Queued',
-  uploading:  'Uploading',
-  error:      'Error',
-}
+// How long a completed file stays visible before disappearing
+const COMPLETED_LINGER_MS = 3000
 
 function uploadFileXHR(
   file: File,
@@ -37,7 +26,6 @@ function uploadFileXHR(
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
-        // Cap at 90% — the remaining 10% represents server-side DB + queue work
         onProgress(Math.min(Math.round((e.loaded / e.total) * 90), 90))
       }
     }
@@ -45,32 +33,64 @@ function uploadFileXHR(
     xhr.onload = () => {
       try {
         const data = JSON.parse(xhr.responseText)
-        if (xhr.status === 200) {
-          resolve({ photoId: data.photoId })
-        } else {
-          resolve({ error: data.error ?? 'Upload failed' })
-        }
+        if (xhr.status === 200) resolve({ photoId: data.photoId })
+        else resolve({ error: data.error ?? 'Upload failed' })
       } catch {
         resolve({ error: 'Invalid server response' })
       }
     }
 
-    xhr.onerror = () => resolve({ error: 'Network error' })
+    xhr.onerror   = () => resolve({ error: 'Network error' })
     xhr.ontimeout = () => resolve({ error: 'Request timed out' })
-    xhr.timeout = 120_000 // 2 min — large files need time
+    xhr.timeout   = 120_000
 
     xhr.open('POST', '/api/photos/upload')
     xhr.send(formData)
   })
 }
 
+// Extended internal type with optional doneAt timestamp for auto-collapse
+type UploadEntry = UploadFile & { doneAt?: number }
+
 export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles] = useState<UploadFile[]>([])
+  const [files, setFiles]           = useState<UploadEntry[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const timers   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
-  function updateFile(id: string, patch: Partial<UploadFile>) {
-    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+  // Schedule auto-removal of a completed file
+  function scheduleRemoval(id: string) {
+    const t = setTimeout(() => {
+      setFiles((prev) => prev.filter((f) => f.id !== id))
+      timers.current.delete(id)
+    }, COMPLETED_LINGER_MS)
+    timers.current.set(id, t)
+  }
+
+  // Clear all timers on unmount
+  useEffect(() => {
+    return () => { timers.current.forEach(clearTimeout) }
+  }, [])
+
+  function updateFile(id: string, patch: Partial<UploadEntry>) {
+    setFiles((prev) =>
+      prev.map((f) => {
+        if (f.id !== id) return f
+        const next = { ...f, ...patch }
+        // When a file completes successfully, record the time and schedule removal
+        if (patch.status === 'ready' && f.status !== 'ready') {
+          next.doneAt = Date.now()
+          scheduleRemoval(id)
+        }
+        return next
+      }),
+    )
+  }
+
+  function removeFile(id: string) {
+    const t = timers.current.get(id)
+    if (t) { clearTimeout(t); timers.current.delete(id) }
+    setFiles((prev) => prev.filter((f) => f.id !== id))
   }
 
   const startUpload = useCallback(
@@ -83,21 +103,18 @@ export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
       const incoming = Array.from(selected)
       if (incoming.length === 0) return
 
-      // Add all files to the list immediately
-      const entries: UploadFile[] = incoming.map((f) => ({
-        id: crypto.randomUUID(),
+      const entries: UploadEntry[] = incoming.map((f) => ({
+        id:       crypto.randomUUID(),
         filename: f.name,
-        sizeMB: parseFloat((f.size / 1024 / 1024).toFixed(1)),
-        status: 'uploading',
+        sizeMB:   parseFloat((f.size / 1024 / 1024).toFixed(1)),
+        status:   'uploading',
         progress: 0,
       }))
       setFiles((prev) => [...prev, ...entries])
 
-      // Upload in parallel
       await Promise.all(
         incoming.map(async (file, i) => {
           const entry = entries[i]
-
           const result = await uploadFileXHR(file, galleryId, (pct) => {
             updateFile(entry.id, { progress: pct })
           })
@@ -111,33 +128,26 @@ export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
         }),
       )
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [galleryId],
   )
 
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  function handleDragLeave() {
-    setIsDragging(false)
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setIsDragging(false)
-    startUpload(e.dataTransfer.files)
-  }
-
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); setIsDragging(true) }
+  function handleDragLeave() { setIsDragging(false) }
+  function handleDrop(e: React.DragEvent) { e.preventDefault(); setIsDragging(false); startUpload(e.dataTransfer.files) }
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files) startUpload(e.target.files)
-    // Reset input so the same file can be re-selected if needed
     e.target.value = ''
   }
 
-  function removeFile(id: string) {
-    setFiles((prev) => prev.filter((f) => f.id !== id))
-  }
+  // Counts
+  const totalEver    = files.length
+  const uploading    = files.filter((f) => f.status === 'uploading').length
+  const done         = files.filter((f) => f.status === 'ready').length
+  const failed       = files.filter((f) => f.status === 'error').length
+  const hasActivity  = totalEver > 0
+  // Files to show in the list: in-progress + failed (completed auto-disappear via timer)
+  const visibleFiles = files.filter((f) => f.status !== 'ready')
 
   return (
     <div>
@@ -176,52 +186,65 @@ export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
         </div>
       </div>
 
-      {/* File list */}
-      {files.length > 0 && (
-        <div className="mt-6 space-y-2">
-          <p className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-3">
-            {files.length} {files.length === 1 ? 'file' : 'files'}
-          </p>
-          {files.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center gap-4 px-4 py-3 bg-white border border-stone-200"
-            >
-              {statusIcon[file.status]}
+      {/* Status summary */}
+      {hasActivity && (
+        <div className="mt-5">
+          {/* Summary line */}
+          <div className="flex items-center gap-3 px-1 mb-3">
+            {uploading > 0 ? (
+              <Loader2 size={13} strokeWidth={1.5} className="text-stone-400 animate-spin shrink-0" />
+            ) : failed > 0 ? (
+              <AlertCircle size={13} strokeWidth={1.5} className="text-red-400 shrink-0" />
+            ) : (
+              <CheckCircle2 size={13} strokeWidth={1.5} className="text-emerald-500 shrink-0" />
+            )}
+            <p className="text-xs font-sans text-stone-500">
+              {totalEver} {totalEver === 1 ? 'file' : 'files'}
+              {done > 0    && <span className="text-emerald-500"> · {done} done</span>}
+              {uploading > 0 && <span className="text-stone-400"> · {uploading} uploading</span>}
+              {failed > 0  && <span className="text-red-400"> · {failed} failed</span>}
+            </p>
+          </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-4 mb-1">
-                  <span className="text-sm font-sans text-stone-700 truncate">{file.filename}</span>
-                  <span className="text-xs font-sans text-stone-400 shrink-0">{file.sizeMB} MB</span>
-                </div>
+          {/* In-progress + failed rows */}
+          {visibleFiles.length > 0 && (
+            <div className="space-y-px">
+              {visibleFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="flex items-center gap-3 px-4 py-2.5 bg-stone-50 border border-stone-100"
+                >
+                  {file.status === 'error' ? (
+                    <AlertCircle size={13} strokeWidth={1.5} className="text-red-400 shrink-0" />
+                  ) : (
+                    <Loader2 size={13} strokeWidth={1.5} className="text-stone-400 animate-spin shrink-0" />
+                  )}
 
-                {file.status === 'error' ? (
-                  <p className="text-xs text-red-500 font-sans">{file.errorMessage}</p>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-0.5 bg-stone-100">
-                      <div
-                        className={`h-0.5 transition-all duration-500 ${
-                          file.status === 'ready' ? 'bg-emerald-400' : 'bg-accent'
-                        }`}
-                        style={{ width: `${file.progress}%` }}
-                      />
-                    </div>
-                    <span className="text-[11px] font-sans text-stone-400 shrink-0">
-                      {statusLabel[file.status]}
-                    </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-sans text-stone-600 truncate">{file.filename}</p>
+                    {file.status === 'error' ? (
+                      <p className="text-[11px] font-sans text-red-400 mt-0.5">{file.errorMessage}</p>
+                    ) : (
+                      <div className="mt-1.5 h-px bg-stone-200">
+                        <div
+                          className="h-px bg-stone-400 transition-all duration-500"
+                          style={{ width: `${file.progress}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <button
-                onClick={() => removeFile(file.id)}
-                className="text-stone-300 hover:text-stone-500 transition-colors shrink-0"
-              >
-                <X size={14} strokeWidth={1.5} />
-              </button>
+                  <button
+                    onClick={() => removeFile(file.id)}
+                    className="text-stone-300 hover:text-stone-500 transition-colors shrink-0"
+                    aria-label="Dismiss"
+                  >
+                    <X size={12} strokeWidth={1.5} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

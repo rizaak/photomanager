@@ -4,8 +4,17 @@ export type ClientActivity = 'not_opened' | 'selecting' | 'submitted'
 export type PhotoStatus = 'uploading' | 'processing' | 'ready' | 'failed'
 export type Plan = 'free' | 'pro' | 'studio'
 
+export interface GalleryFolder {
+  id: string
+  name: string
+  sortOrder: number
+  galleryCount: number
+  createdAt: string
+}
+
 export interface Gallery {
   id: string
+  folderId?: string
   shareToken?: string
   title: string
   clientName: string
@@ -14,9 +23,17 @@ export interface Gallery {
   createdAt: string
   expiresAt?: string
   downloadEnabled: boolean
-  coverColor: string
+  coverColor:     string
+  coverPhotoUrl?: string
   selectedCount?: number       // photos the client has marked
   clientActivity?: ClientActivity
+  tags?: string[]
+}
+
+export interface PhotoComment {
+  id: string
+  body: string
+  updatedAt: string
 }
 
 export interface Photo {
@@ -26,7 +43,8 @@ export interface Photo {
   width: number
   height: number
   status: PhotoStatus
-  selected: boolean
+  selected: boolean    // kept for internal compat; not shown in client UI
+  favorited: boolean
   placeholderColor: string
   thumbnailUrl?: string
   watermarkedUrl?: string

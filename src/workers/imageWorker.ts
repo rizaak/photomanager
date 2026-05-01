@@ -12,9 +12,14 @@ export function startImageWorker() {
   const worker = new Worker(
     'image-processing',
     async (job) => {
-      const { photoId } = job.data as { photoId: string; galleryId: string }
-      console.log(`[worker] processing photo ${photoId} (job ${job.id})`)
-      await ImageProcessingService.process(photoId)
+      const { photoId } = job.data as { photoId: string; galleryId?: string; presetId?: string | null }
+      if (job.name === 'regen-watermark') {
+        console.log(`[worker] regen-watermark photo ${photoId} (job ${job.id})`)
+        await ImageProcessingService.regenerateWatermark(photoId)
+      } else {
+        console.log(`[worker] processing photo ${photoId} (job ${job.id})`)
+        await ImageProcessingService.process(photoId)
+      }
     },
     { connection, concurrency: 2 },
   )

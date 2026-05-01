@@ -137,6 +137,7 @@ export const mockPhotos: Photo[] = Array.from({ length: 24 }, (_, i) => ({
   height: photoSpecs[i].h,
   status: 'ready',
   selected: [2, 5, 9, 14, 19].includes(i),
+  favorited: false,
   placeholderColor: photoColors[i],
 }))
 

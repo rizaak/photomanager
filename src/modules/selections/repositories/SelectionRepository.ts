@@ -64,6 +64,27 @@ export const SelectionRepository = {
     })
   },
 
+  async findWorkflowForClient(galleryId: string, clientEmail: string) {
+    return prisma.selection.findFirst({
+      where: {
+        galleryId,
+        clientEmail,
+        submittedAt: { not: null },
+      },
+      orderBy: { submittedAt: 'desc' },
+      select: {
+        workflowState: true,
+        items: {
+          select: {
+            photo: {
+              select: { finalKey: true, editStatus: true },
+            },
+          },
+        },
+      },
+    })
+  },
+
   async findSubmittedWithPhotos(galleryId: string) {
     return prisma.selection.findFirst({
       where:   { galleryId, submittedAt: { not: null } },

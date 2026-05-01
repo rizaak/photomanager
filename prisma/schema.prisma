@@ -11,8 +11,8 @@ datasource db {
 
 enum PlanName {
   FREE
+  STARTER
   PRO
-  STUDIO
 }
 
 enum GalleryStatus {
@@ -64,11 +64,25 @@ enum DownloadType {
   FULL_GALLERY
 }
 
+enum WatermarkPosition {
+  CENTER
+  TOP_LEFT
+  TOP_RIGHT
+  BOTTOM_LEFT
+  BOTTOM_RIGHT
+}
+
 enum GalleryEventType {
   GALLERY_OPENED
   CLIENT_REGISTERED
   PHOTO_SELECTED
+  PHOTO_DESELECTED
+  PHOTO_FAVORITED
+  PHOTO_UNFAVORITED
+  COMMENT_ADDED
   SELECTION_SUBMITTED
+  FINAL_UPLOADED
+  FINALS_READY
   DOWNLOAD_REQUESTED
 }
 
@@ -87,12 +101,13 @@ model User {
 
 /// Subscription plan definition — rows seeded at deploy time
 model Plan {
-  id             String              @id @default(uuid())
-  name           PlanName            @unique
-  storageLimitGB Int
-  maxGalleries   Int?                // null = unlimited
-  createdAt      DateTime            @default(now())
-  photographers  PhotographerProfile[]
+  id                   String              @id @default(uuid())
+  name                 PlanName            @unique
+  storageLimitGB       Int
+  maxGalleries         Int?                // null = unlimited
+  photoLimitPerGallery Int?                // null = unlimited
+  createdAt            DateTime            @default(now())
+  photographers        PhotographerProfile[]
 }
 
 model PhotographerProfile {
@@ -102,17 +117,35 @@ model PhotographerProfile {
   planId           String
   plan             Plan             @relation(fields: [planId], references: [id])
   businessName     String?
+  storageLimitGB   Int              @default(5)
   storageUsedBytes BigInt           @default(0)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   galleries        Gallery[]
+  folders          GalleryFolder[]
   presets          GalleryPreset[]
+  watermarkPresets WatermarkPreset[]
+}
+
+model GalleryFolder {
+  id             String              @id @default(uuid())
+  photographerId String
+  photographer   PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  name           String
+  sortOrder      Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  galleries      Gallery[]
+
+  @@index([photographerId])
 }
 
 model Gallery {
   id                 String              @id @default(uuid())
   photographerId     String
   photographer       PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  folderId           String?
+  folder             GalleryFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
   title              String
   subtitle           String?
   clientName         String
@@ -132,6 +165,16 @@ model Gallery {
   downloadType       DownloadType        @default(NONE)
   // Protection
   watermarkEnabled   Boolean             @default(true)
+  watermarkPresetId  String?
+  watermarkPreset    WatermarkPreset?    @relation(fields: [watermarkPresetId], references: [id], onDelete: SetNull)
+  // Presentation
+  coverPhotoId       String?
+  coverStyle         String              @default("fullscreen")
+  galleryLayout      String              @default("masonry")
+  typographyStyle    String              @default("serif")
+  colorTheme         String              @default("dark")
+  eventDate          String?
+  tags               String[]            @default([])
   // Activity
   clientActivity     ClientActivity      @default(NOT_OPENED)
   createdAt          DateTime            @default(now())
@@ -142,8 +185,11 @@ model Gallery {
   downloads          Download[]
   galleryClients     GalleryClient[]
   activityEvents     GalleryActivityEvent[]
+  favorites          Favorite[]
+  comments           Comment[]
 
   @@index([photographerId])
+  @@index([photographerId, folderId])
   @@index([status])
 }
 
@@ -160,14 +206,17 @@ model GallerySection {
 }
 
 model GalleryClient {
-  id          String    @id @default(uuid())
-  galleryId   String
-  gallery     Gallery   @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  name        String
-  email       String
-  accessToken String    @unique @default(uuid())
-  createdAt   DateTime  @default(now())
-  selections  Selection[]
+  id             String     @id @default(uuid())
+  galleryId      String
+  gallery        Gallery    @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  accessToken    String     @unique @default(uuid())
+  lastAccessedAt DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  selections     Selection[]
+  favorites      Favorite[]
+  comments       Comment[]
 
   @@unique([galleryId, email])
   @@index([galleryId])
@@ -192,9 +241,13 @@ model Photo {
   editStatus     EditStatus      @default(NONE)
   finalKey       String?
   sortOrder      Int             @default(0)
-  createdAt      DateTime        @default(now())
+  labels                   String[]        @default([])
+  appliedWatermarkPresetId String?
+  createdAt                DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   selectionItems SelectionItem[]
+  favorites      Favorite[]
+  comments       Comment[]
 
   @@index([galleryId])
   @@index([galleryId, status])
@@ -281,4 +334,54 @@ model GalleryActivityEvent {
 
   @@index([galleryId])
   @@index([galleryId, eventType])
+}
+
+model Favorite {
+  id              String        @id @default(uuid())
+  galleryId       String
+  gallery         Gallery       @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  galleryClientId String
+  galleryClient   GalleryClient @relation(fields: [galleryClientId], references: [id], onDelete: Cascade)
+  photoId         String
+  photo           Photo         @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([galleryClientId, photoId])
+  @@index([galleryId])
+  @@index([galleryClientId])
+}
+
+model Comment {
+  id              String        @id @default(uuid())
+  galleryId       String
+  gallery         Gallery       @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  galleryClientId String
+  galleryClient   GalleryClient @relation(fields: [galleryClientId], references: [id], onDelete: Cascade)
+  photoId         String?
+  photo           Photo?        @relation(fields: [photoId], references: [id], onDelete: SetNull)
+  body            String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([galleryId])
+  @@index([galleryClientId])
+  @@index([galleryClientId, photoId])
+}
+
+model WatermarkPreset {
+  id             String              @id @default(uuid())
+  photographerId String
+  photographer   PhotographerProfile @relation(fields: [photographerId], references: [id], onDelete: Cascade)
+  name           String
+  imageKey       String
+  position       WatermarkPosition   @default(CENTER)
+  sizePct        Int                 @default(20)
+  opacity        Int                 @default(40)
+  isDefault      Boolean             @default(false)
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  galleries      Gallery[]
+
+  @@index([photographerId])
 }

@@ -71,6 +71,17 @@ export const QueueProvider = {
     )
   },
 
+  async enqueueWatermarkRegeneration(photoId: string, presetId?: string | null): Promise<void> {
+    await getImageQueue().add(
+      'regen-watermark',
+      { photoId, presetId: presetId ?? null },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      },
+    )
+  },
+
   async enqueueNotification(type: string, payload: Record<string, unknown>): Promise<void> {
     await getNotificationQueue().add(
       'notify',

@@ -1,29 +1,26 @@
-import { GalleryStatus } from '@prisma/client'
 import { prisma } from '../../../infrastructure/database/db'
 
 export const PhotographerRepository = {
-  async findWithPlan(photographerId: string) {
+  async findProfile(photographerId: string) {
     return prisma.photographerProfile.findUnique({
       where:  { id: photographerId },
       select: {
+        id:              true,
+        businessName:    true,
+        storageLimitGB:  true,
         storageUsedBytes: true,
-        plan: {
-          select: {
-            name:          true,
-            storageLimitGB: true,
-            maxGalleries:  true,
-          },
-        },
+        plan: { select: { name: true } },
+        user: { select: { name: true, email: true } },
       },
     })
   },
 
-  /** Count non-archived galleries (draft + active count toward the limit). */
-  async countActiveGalleries(photographerId: string): Promise<number> {
-    return prisma.gallery.count({
-      where: {
-        photographerId,
-        status: { not: GalleryStatus.ARCHIVED },
+  async findForUsage(photographerId: string) {
+    return prisma.photographerProfile.findUnique({
+      where:  { id: photographerId },
+      select: {
+        storageLimitGB:   true,
+        storageUsedBytes: true,
       },
     })
   },
@@ -34,5 +31,14 @@ export const PhotographerRepository = {
       where: { id: photographerId },
       data:  { storageUsedBytes: { increment: bytes } },
     })
+  },
+
+  /** Atomically subtract bytes, floored at 0 to prevent negative values. */
+  async decrementStorageUsed(photographerId: string, bytes: bigint): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE "PhotographerProfile"
+      SET "storageUsedBytes" = GREATEST(0, "storageUsedBytes" - ${bytes})
+      WHERE id = ${photographerId}
+    `
   },
 }

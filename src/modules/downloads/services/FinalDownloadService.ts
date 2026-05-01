@@ -2,6 +2,7 @@ import { storageProvider } from '../../../infrastructure/storage/StorageProvider
 import { prisma } from '../../../infrastructure/database/db'
 import { ClientRepository } from '../../clients/repositories/ClientRepository'
 import { ActivityService } from '../../activity/services/ActivityService'
+import { QueueProvider } from '../../../infrastructure/queue/QueueProvider'
 
 // Signed URL validity — 15 minutes per file (enough for browser to initiate download)
 const FINAL_URL_EXPIRY_S = 900
@@ -82,8 +83,13 @@ export const FinalDownloadService = {
       })),
     )
 
-    // 6. Log activity (fire-and-forget)
+    // 6. Log activity + enqueue notification (fire-and-forget)
     ActivityService.log(galleryId, 'DOWNLOAD_REQUESTED', { type: 'finals', count: items.length })
+    QueueProvider.enqueueNotification('DOWNLOAD_REQUESTED', {
+      galleryId,
+      type:  'finals',
+      count: items.length,
+    }).catch((err) => console.error('[FinalDownloadService] enqueue DOWNLOAD_REQUESTED:', err))
 
     return items
   },

@@ -5,15 +5,15 @@ const prisma = new PrismaClient()
 async function main() {
   // ── Plans ─────────────────────────────────────────────────────────────────
   const plans = [
-    { name: PlanName.FREE,   storageLimitGB: 10,   maxGalleries: 3    },
-    { name: PlanName.PRO,    storageLimitGB: 100,  maxGalleries: null },
-    { name: PlanName.STUDIO, storageLimitGB: 1000, maxGalleries: null },
+    { name: PlanName.FREE,    storageLimitGB: 5,   maxGalleries: 3,    photoLimitPerGallery: 50   },
+    { name: PlanName.STARTER, storageLimitGB: 50,  maxGalleries: 15,   photoLimitPerGallery: 300  },
+    { name: PlanName.PRO,     storageLimitGB: 500, maxGalleries: null, photoLimitPerGallery: null },
   ]
 
   for (const plan of plans) {
     await prisma.plan.upsert({
       where:  { name: plan.name },
-      update: {},
+      update: { storageLimitGB: plan.storageLimitGB, maxGalleries: plan.maxGalleries, photoLimitPerGallery: plan.photoLimitPerGallery },
       create: plan,
     })
   }

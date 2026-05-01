@@ -163,9 +163,12 @@ function PhotoThumb({ photo, isSelected, galleryId, onToggle, onFinalUploaded }:
   const showUpload = !photo.hasFinal
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onToggle(photo.id)}
-      className="relative aspect-[3/2] overflow-hidden bg-stone-100 focus:outline-none group"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(photo.id) } }}
+      className="relative aspect-[3/2] overflow-hidden bg-stone-100 focus:outline-none group cursor-pointer"
       style={isSelected ? { boxShadow: 'inset 0 0 0 2px #C9A96E' } : {}}
     >
       {photo.thumbnailUrl && (
@@ -204,7 +207,7 @@ function PhotoThumb({ photo, isSelected, galleryId, onToggle, onFinalUploaded }:
           />
         </div>
       )}
-    </button>
+    </div>
   )
 }
 

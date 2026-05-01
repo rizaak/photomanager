@@ -1,10 +1,4 @@
-import { auth0 } from '@/src/lib/auth0'
-import { NextRequest } from 'next/server'
-
-export async function GET(req: NextRequest) {
-  return auth0.middleware(req)
-}
-
-export async function POST(req: NextRequest) {
-  return auth0.middleware(req)
-}
+// Auth0 routes are handled by the middleware (middleware.ts → auth0.middleware).
+// This file intentionally left as a no-op fallback — requests to /api/auth/*
+// should never reach here because the middleware intercepts them first.
+export const runtime = 'nodejs'

@@ -24,7 +24,7 @@ export const AuthRepository = {
         auth0Sub: data.auth0Sub,
         email:    data.email,
         name:     data.name,
-        profile:  { create: { planId: freePlan.id } },
+        profile:  { create: { planId: freePlan.id, storageLimitGB: freePlan.storageLimitGB } },
       },
       include: { profile: { select: { id: true } } },
     })
@@ -44,7 +44,7 @@ export const AuthRepository = {
 
     return prisma.photographerProfile.upsert({
       where:  { userId },
-      create: { userId, planId: freePlan.id },
+      create: { userId, planId: freePlan.id, storageLimitGB: freePlan.storageLimitGB },
       update: {},
       select: { id: true },
     })

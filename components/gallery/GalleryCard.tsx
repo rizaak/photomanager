@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { Download, Link2, Clock, CheckCircle2 } from 'lucide-react'
-import type { Gallery } from '@/lib/types'
+import type { Gallery, GalleryFolder } from '@/lib/types'
 import { getGalleryAction, type GalleryAction } from '@/lib/gallery-utils'
+import { GalleryCardMenu } from '@/components/gallery/GalleryCardMenu'
 
 export { getGalleryAction }
 
@@ -28,7 +29,19 @@ function fmtDate(iso: string) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function GalleryCard({ gallery }: { gallery: Gallery }) {
+export function GalleryCard({
+  gallery,
+  folders = [],
+  isSelected = false,
+  selectionActive = false,
+  onSelect,
+}: {
+  gallery: Gallery
+  folders?: GalleryFolder[]
+  isSelected?: boolean
+  selectionActive?: boolean
+  onSelect?: (id: string, e: React.MouseEvent) => void
+}) {
   const action = getGalleryAction(gallery)
   const meta = ACTION_META[action]
   const isUrgent = action === 'deliver'
@@ -37,23 +50,95 @@ export function GalleryCard({ gallery }: { gallery: Gallery }) {
   const showProgress = selectedCount > 0 && gallery.status !== 'archived'
   const progressPct = Math.min(100, Math.round((selectedCount / gallery.photoCount) * 100))
 
+  function handleCardClick(e: React.MouseEvent) {
+    if (onSelect && (e.metaKey || e.ctrlKey || e.shiftKey || selectionActive)) {
+      e.preventDefault()
+      onSelect(gallery.id, e)
+    }
+  }
+
+  function handleCheckboxClick(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    onSelect?.(gallery.id, e)
+  }
+
   return (
     <Link
       href={`/dashboard/gallery/${gallery.id}`}
-      className="group block bg-white transition-all duration-300"
+      className="group block bg-white transition-all duration-300 relative"
       style={{
-        border: isUrgent
+        border: isSelected
+          ? '1px solid rgba(201,169,110,0.7)'
+          : isUrgent
           ? '1px solid rgba(201,169,110,0.45)'
           : '1px solid #e7e5e4',
-        boxShadow: isUrgent
+        boxShadow: isSelected
+          ? '0 0 0 3px rgba(201,169,110,0.15)'
+          : isUrgent
           ? '0 0 0 3px rgba(201,169,110,0.08), 0 2px 12px rgba(0,0,0,0.06)'
           : '0 1px 4px rgba(0,0,0,0.04)',
       }}
+      onClick={handleCardClick}
     >
+      {/* Selection checkbox */}
+      {onSelect && (
+        <div
+          className="absolute top-2.5 left-2.5 z-10"
+          style={{
+            opacity: isSelected || selectionActive ? 1 : 0,
+            transition: 'opacity 150ms ease',
+          }}
+          // Show on group-hover via CSS approach — we use inline style + group-hover workaround
+          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '1' }}
+          onMouseLeave={(e) => {
+            if (!isSelected && !selectionActive)
+              (e.currentTarget as HTMLDivElement).style.opacity = '0'
+          }}
+        >
+          <button
+            onClick={handleCheckboxClick}
+            className="w-5 h-5 rounded flex items-center justify-center transition-all duration-150"
+            style={{
+              background: isSelected ? '#C9A96E' : 'rgba(255,255,255,0.9)',
+              border: isSelected ? 'none' : '1px solid #d6d3d1',
+              backdropFilter: 'blur(4px)',
+            }}
+            aria-label={isSelected ? 'Deselect gallery' : 'Select gallery'}
+          >
+            {isSelected && (
+              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                <path d="M1 4l2.5 2.5L9 1" stroke="#1c1917" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Cover */}
       <div className={`${gallery.coverColor} h-40 w-full relative overflow-hidden`}>
+        {gallery.coverPhotoUrl && (
+          <img
+            src={gallery.coverPhotoUrl}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 w-full h-full object-cover opacity-0 transition-all duration-700 group-hover:scale-[1.03]"
+            style={{ transitionProperty: 'opacity, transform' }}
+            onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '1' }}
+          />
+        )}
         {/* Subtle gradient veil so the body card reads cleanly */}
-        <div className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/10 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/14 to-transparent" />
+
+        {/* Actions menu — top-right of cover */}
+        <div
+          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
+        >
+          <div className="rounded" style={{ background: 'rgba(255,255,255,0.88)', backdropFilter: 'blur(6px)' }}>
+            <GalleryCardMenu gallery={gallery} folders={folders} />
+          </div>
+        </div>
       </div>
 
       {/* Body */}

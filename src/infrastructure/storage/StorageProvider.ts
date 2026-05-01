@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl as s3GetSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 class StorageProvider {
@@ -51,6 +51,12 @@ class StorageProvider {
         Body: body,
         ContentType: contentType,
       }),
+    )
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
     )
   }
 }

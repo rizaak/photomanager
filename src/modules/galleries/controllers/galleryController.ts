@@ -66,17 +66,29 @@ export async function handleResolveGalleryAccess(
     clientToken?: string
     name?:        string
     email?:       string
+    preview?:     boolean
   } = {}
   try { body = await req.json() } catch { /* no body */ }
 
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 
+  // Photographer preview mode — verify Auth0 session so DRAFT galleries are accessible to their owner
+  let photographerId: string | undefined
+  if (body.preview === true) {
+    try {
+      photographerId = await getAuthenticatedPhotographer()
+    } catch {
+      // Not authenticated — fall through, access gates apply normally
+    }
+  }
+
   try {
     const result = await GalleryAccessService.resolveAccess(token, {
-      password:    str(body.password),
-      clientToken: str(body.clientToken),
-      name:        str(body.name),
-      email:       str(body.email),
+      password:       str(body.password),
+      clientToken:    str(body.clientToken),
+      name:           str(body.name),
+      email:          str(body.email),
+      photographerId,
     })
 
     switch (result.gate) {
@@ -92,6 +104,7 @@ export async function handleResolveGalleryAccess(
   } catch (err) {
     const e = err as { status?: number }
     if (e.status === 404) return NextResponse.json({ error: 'Gallery not found' }, { status: 404 })
+    if (e.status === 410) return NextResponse.json({ error: 'Gallery has expired', code: 'EXPIRED' }, { status: 410 })
     if (e.status === 400) {
       const msg = err instanceof Error ? err.message : 'Bad request'
       return NextResponse.json({ error: msg }, { status: 400 })

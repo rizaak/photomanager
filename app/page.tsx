@@ -1,6 +1,8 @@
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { ArrowRight, Lock, Zap, Download } from 'lucide-react'
+import { auth0 } from '@/src/lib/auth0'
 
 // ─── Hero background grid ────────────────────────────────────────────────────
 
@@ -104,7 +106,10 @@ const steps = [
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await auth0.getSession()
+  if (session) redirect('/dashboard')
+
   return (
     <div className="min-h-screen bg-stone-950">
       <Navbar theme="dark" />

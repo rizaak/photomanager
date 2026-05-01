@@ -1,5 +1,5 @@
 import { storageProvider } from '../../../infrastructure/storage/StorageProvider'
-import { PhotoRepository } from '../repositories/PhotoRepository'
+import { PhotoRepository, type PhotoListParams } from '../repositories/PhotoRepository'
 
 const URL_EXPIRY_SECONDS = 3600
 
@@ -13,19 +13,27 @@ type RawPhoto = {
   watermarkedKey: string | null
 }
 
+// Public-facing: both grid and modal always serve watermarked URLs.
+// The DB query (findGalleryWithReadyPhotos) already requires watermarkedKey NOT NULL,
+// so the assertion is safe. When watermark is disabled the worker still writes the
+// clean preview to watermarkedKey — so this is correct in both cases.
 async function signPhoto(photo: RawPhoto) {
+  const watermarkedUrl = await storageProvider.getSignedUrl(photo.watermarkedKey!, URL_EXPIRY_SECONDS)
   return {
     id:             photo.id,
     galleryId:      photo.galleryId,
     filename:       photo.filename,
     width:          photo.width  ?? 3,
     height:         photo.height ?? 2,
-    thumbnailUrl:   await storageProvider.getSignedUrl(photo.thumbnailKey!,   URL_EXPIRY_SECONDS),
-    watermarkedUrl: await storageProvider.getSignedUrl(photo.watermarkedKey!, URL_EXPIRY_SECONDS),
+    // thumbnailUrl intentionally points to watermarked asset — the grid must
+    // never serve the clean thumbnail to public clients.
+    thumbnailUrl:   watermarkedUrl,
+    watermarkedUrl,
   }
 }
 
 export const GalleryPhotosService = {
+  // ── Full gallery load (used by client gallery view + cover photo selector) ──
   async getForGallery(galleryId: string) {
     const [result, nonReady] = await Promise.all([
       PhotoRepository.findGalleryWithReadyPhotos(galleryId),
@@ -44,7 +52,6 @@ export const GalleryPhotosService = {
 
     const unsectioned = await Promise.all(result.photos.map(signPhoto))
 
-    // Non-ready photos (uploading / processing / failed) — no signed URLs
     const pending = nonReady.map((p) => ({
       id:        p.id,
       galleryId: p.galleryId,
@@ -58,6 +65,48 @@ export const GalleryPhotosService = {
       sections,
       unsectioned,
       pending,
+    }
+  },
+
+  // ── Paginated + filtered load for photographer dashboard ──────────────────
+  async listForDashboard(galleryId: string, params: PhotoListParams = {}) {
+    const [result, allLabels] = await Promise.all([
+      PhotoRepository.findForDashboard(galleryId, params),
+      // Only fetch labels when not already filtering by them (for filter UI)
+      params.labels?.length ? Promise.resolve([]) : PhotoRepository.findDistinctLabels(galleryId),
+    ])
+
+    const photos = await Promise.all(
+      result.photos.map(async (p) => ({
+        id:               p.id,
+        filename:         p.filename,
+        width:            p.width  ?? 3,
+        height:           p.height ?? 2,
+        sectionId:        p.sectionId,
+        thumbnailUrl:     p.thumbnailKey
+                            ? await storageProvider.getSignedUrl(p.thumbnailKey, URL_EXPIRY_SECONDS)
+                            : null,
+        status:           p.status === 'FAILED'
+                            ? 'failed'
+                            : p.status === 'READY'
+                              ? 'ready'
+                              : 'processing',
+        editStatus:       p.editStatus as string,
+        isClientSelected: p._count.selectionItems > 0,
+        hasComments:      p._count.comments > 0,
+        hasFinal:                  !!p.finalKey,
+        labels:                    p.labels,
+        appliedWatermarkPresetId:  p.appliedWatermarkPresetId ?? null,
+      })),
+    )
+
+    return {
+      photos,
+      total:    result.total,
+      page:     result.page,
+      pageSize: result.limit,
+      hasMore:  result.page * result.limit < result.total,
+      allLabels,
     }
   },
 }

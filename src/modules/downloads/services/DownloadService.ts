@@ -21,12 +21,18 @@ const PHOTO_DOWNLOAD_EXPIRY_S = 300
 const ZIP_DOWNLOAD_EXPIRY_S = 3600
 
 export const DownloadService = {
-  // ── Single photo ──────────────────────────────────────────────────────────
-  async getDownloadUrl(photoId: string): Promise<{ url: string }> {
+  // ── Single photo (photographer only — returns signed URL for original) ────
+  async getDownloadUrl(photoId: string, photographerId: string): Promise<{ url: string }> {
     const photo = await PhotoRepository.findById(photoId)
 
     if (!photo) {
       throw Object.assign(new Error('Photo not found'), { status: 404 })
+    }
+
+    // Verify the photo belongs to a gallery owned by this photographer
+    const gallery = await GalleryRepository.findPermissionsWithOwner(photo.galleryId)
+    if (!gallery || gallery.photographerId !== photographerId) {
+      throw Object.assign(new Error('Forbidden'), { status: 403 })
     }
 
     if (photo.status !== PhotoStatus.READY || !photo.originalKey) {

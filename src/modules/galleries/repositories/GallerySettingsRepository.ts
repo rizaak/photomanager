@@ -5,6 +5,13 @@ export interface UpdateSettingsInput {
   // Presentation
   title?:             string
   subtitle?:          string | null
+  eventDate?:         string | null
+  coverPhotoId?:      string | null
+  coverStyle?:        string
+  galleryLayout?:     string
+  typographyStyle?:   string
+  colorTheme?:        string
+  tags?:              string[]
   // Access
   password?:          string | null
   expiresAt?:         Date | null
@@ -18,7 +25,8 @@ export interface UpdateSettingsInput {
   downloadEnabled?:   boolean
   downloadType?:      DownloadType
   // Protection
-  watermarkEnabled?:  boolean
+  watermarkEnabled?:   boolean
+  watermarkPresetId?:  string | null
 }
 
 export const GallerySettingsRepository = {
@@ -29,6 +37,13 @@ export const GallerySettingsRepository = {
         id:                true,
         title:             true,
         subtitle:          true,
+        eventDate:         true,
+        coverPhotoId:      true,
+        coverStyle:        true,
+        galleryLayout:     true,
+        typographyStyle:   true,
+        colorTheme:        true,
+        tags:              true,
         status:            true,
         shareToken:        true,
         password:          true,
@@ -37,10 +52,11 @@ export const GallerySettingsRepository = {
         allowFavorites:    true,
         allowComments:     true,
         requireClientInfo: true,
-        downloadEnabled:   true,
-        downloadType:      true,
-        watermarkEnabled:  true,
-        photographerId:    true,
+        downloadEnabled:    true,
+        downloadType:       true,
+        watermarkEnabled:   true,
+        watermarkPresetId:  true,
+        photographerId:     true,
       },
     })
   },
@@ -53,6 +69,13 @@ export const GallerySettingsRepository = {
         id:                true,
         title:             true,
         subtitle:          true,
+        eventDate:         true,
+        coverPhotoId:      true,
+        coverStyle:        true,
+        galleryLayout:     true,
+        typographyStyle:   true,
+        colorTheme:        true,
+        tags:              true,
         status:            true,
         shareToken:        true,
         password:          true,
@@ -61,9 +84,10 @@ export const GallerySettingsRepository = {
         allowFavorites:    true,
         allowComments:     true,
         requireClientInfo: true,
-        downloadEnabled:   true,
-        downloadType:      true,
-        watermarkEnabled:  true,
+        downloadEnabled:    true,
+        downloadType:       true,
+        watermarkEnabled:   true,
+        watermarkPresetId:  true,
       },
     })
   },

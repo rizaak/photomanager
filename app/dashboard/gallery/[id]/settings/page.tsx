@@ -4,18 +4,28 @@ import { ArrowLeft } from 'lucide-react'
 import { getAuthenticatedPhotographer } from '@/src/modules/auth/utils/getAuthenticatedPhotographer'
 import { GallerySettingsService } from '@/src/modules/galleries/services/GallerySettingsService'
 import { PresetService } from '@/src/modules/presets/services/PresetService'
+import { WatermarkService } from '@/src/modules/watermarks/services/WatermarkService'
 import { GallerySettingsClient } from '@/components/gallery/GallerySettingsClient'
 
 export default async function GallerySettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const photographerId = await getAuthenticatedPhotographer()
 
-  const [settings, presets] = await Promise.all([
+  const [rawSettings, presets, watermarkPresets] = await Promise.all([
     GallerySettingsService.getSettings(id, photographerId).catch(() => null),
     PresetService.list(photographerId),
+    WatermarkService.list(photographerId),
   ])
 
-  if (!settings) notFound()
+  if (!rawSettings) notFound()
+
+  // Cast string fields to their union types — values are validated in the service layer
+  const settings = rawSettings as typeof rawSettings & {
+    coverStyle:      'fullscreen' | 'split' | 'minimal'
+    galleryLayout:   'masonry' | 'editorial' | 'uniform'
+    typographyStyle: 'serif' | 'modern' | 'minimal'
+    colorTheme:      'dark' | 'light' | 'warm'
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -35,6 +45,7 @@ export default async function GallerySettingsPage({ params }: { params: Promise<
         galleryId={id}
         initialSettings={settings}
         initialPresets={presets}
+        initialWatermarkPresets={watermarkPresets}
       />
     </div>
   )

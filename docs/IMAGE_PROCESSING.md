@@ -36,8 +36,27 @@ Each uploaded image must generate:
 
 ---
 
-## Watermark
+## Watermark Presets
 
-- semi-transparent
-- consistent position (center or corner)
-- same style across all images
+- Watermarks are configured per photographer.
+- A photographer can have multiple watermark presets.
+- One watermark preset can be marked as default.
+- A gallery can override the photographer default watermark.
+- Watermarks are applied during image processing using sharp.
+- Originals are never watermarked.
+- Public previews should use watermarked versions when enabled.
+
+Supported settings:
+- image
+- size
+- position
+- opacity
+- default flag
+
+## Manual Watermark Actions
+
+- Photographer can manually apply a watermark preset to one or multiple photos.
+- Manual watermarking regenerates only the watermarked preview.
+- Originals are never modified.
+- Watermark regeneration must run through BullMQ.
+- Photo should show processing state while watermark preview is regenerating.

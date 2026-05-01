@@ -1,34 +1,64 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Check, Copy, Eye, EyeOff, Trash2 } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, Trash2, X } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type DownloadType = 'NONE' | 'WATERMARKED' | 'FINAL_EDITED' | 'ORIGINALS' | 'SELECTED_ONLY' | 'FULL_GALLERY'
 type GalleryStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
 
+type CoverStyle     = 'fullscreen' | 'split' | 'minimal'
+type GalleryLayout  = 'masonry' | 'editorial' | 'uniform'
+type TypographyStyle = 'serif' | 'modern' | 'minimal'
+type ColorTheme     = 'dark' | 'light' | 'warm'
+
 interface Settings {
-  id:                string
-  title:             string
-  subtitle:          string | null
-  status:            GalleryStatus
-  shareToken:        string
-  hasPassword:       boolean
-  expiresAt:         string | null
-  allowSelection:    boolean
-  allowFavorites:    boolean
-  allowComments:     boolean
-  requireClientInfo: boolean
-  downloadEnabled:   boolean
-  downloadType:      DownloadType
-  watermarkEnabled:  boolean
+  id:                 string
+  title:              string
+  subtitle:           string | null
+  eventDate:          string | null
+  coverPhotoId:       string | null
+  coverStyle:         CoverStyle
+  galleryLayout:      GalleryLayout
+  typographyStyle:    TypographyStyle
+  colorTheme:         ColorTheme
+  tags:               string[]
+  status:             GalleryStatus
+  shareToken:         string
+  hasPassword:        boolean
+  expiresAt:          string | null
+  allowSelection:     boolean
+  allowFavorites:     boolean
+  allowComments:      boolean
+  requireClientInfo:  boolean
+  downloadEnabled:    boolean
+  downloadType:       DownloadType
+  watermarkEnabled:   boolean
+  watermarkPresetId:  string | null
+}
+
+interface WatermarkPreset {
+  id:         string
+  name:       string
+  position:   string
+  sizePct:    number
+  opacity:    number
+  isDefault:  boolean
+  previewUrl: string
 }
 
 // Superset of Settings for PATCH body — includes write-only fields not in the read model
 interface SettingsPatch {
   title?:             string
   subtitle?:          string | null
+  eventDate?:         string | null
+  coverPhotoId?:      string | null
+  coverStyle?:        CoverStyle
+  galleryLayout?:     GalleryLayout
+  typographyStyle?:   TypographyStyle
+  colorTheme?:        ColorTheme
+  tags?:              string[]
   status?:            GalleryStatus
   expiresAt?:         string | null
   allowSelection?:    boolean
@@ -37,8 +67,15 @@ interface SettingsPatch {
   requireClientInfo?: boolean
   downloadEnabled?:   boolean
   downloadType?:      DownloadType
-  watermarkEnabled?:  boolean
-  password?:          string | null
+  watermarkEnabled?:   boolean
+  watermarkPresetId?:  string | null
+  password?:           string | null
+}
+
+interface GalleryPhoto {
+  id:           string
+  thumbnailUrl: string | null
+  filename:     string
 }
 
 interface Preset {
@@ -90,7 +127,11 @@ const EVENT_LABELS: Record<string, string> = {
   GALLERY_OPENED:      'Gallery opened',
   CLIENT_REGISTERED:   'Client registered',
   PHOTO_SELECTED:      'Photo selected',
+  PHOTO_DESELECTED:    'Photo deselected',
+  COMMENT_ADDED:       'Comment added',
   SELECTION_SUBMITTED: 'Selection submitted',
+  FINAL_UPLOADED:      'Final uploaded',
+  FINALS_READY:        'Finals marked ready',
   DOWNLOAD_REQUESTED:  'Download requested',
 }
 
@@ -170,21 +211,78 @@ function PlaceholderField({ label, hint }: { label: string; hint: string }) {
   )
 }
 
+function TagsInput({ value, onChange }: { value: string[]; onChange: (tags: string[]) => void }) {
+  const [input, setInput] = useState('')
+
+  function addTag() {
+    const tag = input.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '')
+    if (!tag || value.includes(tag) || value.length >= 20) return
+    onChange([...value, tag])
+    setInput('')
+  }
+
+  function removeTag(tag: string) {
+    onChange(value.filter((t) => t !== tag))
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() }
+    if (e.key === 'Backspace' && !input && value.length > 0) removeTag(value[value.length - 1])
+  }
+
+  return (
+    <div className="max-w-sm">
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {value.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-0.5 bg-stone-100 border border-stone-200 text-[11px] font-sans text-stone-600"
+          >
+            #{tag}
+            <button
+              type="button"
+              onClick={() => removeTag(tag)}
+              className="text-stone-400 hover:text-stone-700 transition-colors"
+            >
+              <X size={9} strokeWidth={2.5} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={addTag}
+          placeholder="Add tag, press Enter"
+          maxLength={30}
+          className="flex-1 bg-white border border-stone-200 px-3 py-2 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors placeholder:text-stone-300"
+        />
+      </div>
+      <p className="mt-1.5 text-[10px] font-sans text-stone-300">Press Enter or comma to add. Max 20 tags.</p>
+    </div>
+  )
+}
+
 // ── GallerySettingsClient ──────────────────────────────────────────────────────
 
 interface Props {
-  galleryId:       string
-  initialSettings: Settings
-  initialPresets:  Preset[]
+  galleryId:              string
+  initialSettings:        Settings
+  initialPresets:         Preset[]
+  initialWatermarkPresets: WatermarkPreset[]
 }
 
-export function GallerySettingsClient({ galleryId, initialSettings, initialPresets }: Props) {
-  const [tab,      setTab]      = useState<Tab>('presentation')
-  const [settings, setSettings] = useState(initialSettings)
-  const [presets,  setPresets]  = useState(initialPresets)
-  const [events,   setEvents]   = useState<ActivityEvent[]>([])
-  const [saving,   setSaving]   = useState(false)
-  const [saved,    setSaved]    = useState(false)
+export function GallerySettingsClient({ galleryId, initialSettings, initialPresets, initialWatermarkPresets }: Props) {
+  const [tab,              setTab]              = useState<Tab>('presentation')
+  const [settings,         setSettings]         = useState(initialSettings)
+  const [presets,          setPresets]          = useState(initialPresets)
+  const [watermarkPresets, setWatermarkPresets] = useState(initialWatermarkPresets)
+  const [events,           setEvents]           = useState<ActivityEvent[]>([])
+  const [saving,           setSaving]           = useState(false)
+  const [saved,            setSaved]            = useState(false)
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -224,6 +322,7 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
   function renderPresentation() {
     return (
       <Section title="Presentation" subtitle="How the gallery appears to clients.">
+        {/* Title */}
         <div className="mb-5">
           <FieldLabel>Title</FieldLabel>
           <TextInput
@@ -232,21 +331,106 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
             placeholder="Gallery title"
           />
         </div>
+
+        {/* Subtitle */}
         <div className="mb-5">
-          <FieldLabel>Subtitle / Description</FieldLabel>
+          <FieldLabel>Subtitle</FieldLabel>
           <textarea
             value={settings.subtitle ?? ''}
             onChange={(e) => setSettings((s) => ({ ...s, subtitle: e.target.value || null }))}
             placeholder="Optional short description"
-            rows={3}
+            rows={2}
             className="w-full max-w-sm bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors placeholder:text-stone-300 resize-none"
           />
         </div>
-        <PlaceholderField label="Cover Image"      hint="Coming soon" />
-        <PlaceholderField label="Layout Style"     hint="Coming soon" />
-        <PlaceholderField label="Color Theme"      hint="Coming soon" />
-        <PlaceholderField label="Typography Style" hint="Coming soon" />
-        <SaveButton saving={saving} saved={saved} onClick={() => patchSettings({ title: settings.title, subtitle: settings.subtitle })} />
+
+        {/* Event date */}
+        <div className="mb-5">
+          <FieldLabel>Event Date</FieldLabel>
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={settings.eventDate ?? ''}
+              onChange={(e) => setSettings((s) => ({ ...s, eventDate: e.target.value || null }))}
+              className="bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors"
+            />
+            {settings.eventDate && (
+              <button
+                onClick={() => setSettings((s) => ({ ...s, eventDate: null }))}
+                className="text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tags */}
+        <div className="mb-7">
+          <FieldLabel>Tags</FieldLabel>
+          <TagsInput
+            value={settings.tags}
+            onChange={(tags) => setSettings((s) => ({ ...s, tags }))}
+          />
+        </div>
+
+        <div className="border-t border-stone-100 pt-7 mb-7">
+          <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Cover</h3>
+
+          {/* Cover photo selector */}
+          <div className="mb-6">
+            <FieldLabel>Cover Photo</FieldLabel>
+            <CoverPhotoSelector
+              galleryId={galleryId}
+              coverPhotoId={settings.coverPhotoId}
+              onChange={(id) => setSettings((s) => ({ ...s, coverPhotoId: id }))}
+            />
+          </div>
+
+          {/* Cover style */}
+          <div className="mb-6">
+            <FieldLabel>Cover Style</FieldLabel>
+            <CoverStylePicker value={settings.coverStyle} onChange={(v) => setSettings((s) => ({ ...s, coverStyle: v as CoverStyle }))} />
+          </div>
+        </div>
+
+        <div className="border-t border-stone-100 pt-7 mb-7">
+          <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Style</h3>
+
+          {/* Gallery layout */}
+          <div className="mb-6">
+            <FieldLabel>Gallery Layout</FieldLabel>
+            <LayoutPicker value={settings.galleryLayout} onChange={(v) => setSettings((s) => ({ ...s, galleryLayout: v as GalleryLayout }))} />
+          </div>
+
+          {/* Color theme */}
+          <div className="mb-6">
+            <FieldLabel>Color Theme</FieldLabel>
+            <ColorThemePicker value={settings.colorTheme} onChange={(v) => setSettings((s) => ({ ...s, colorTheme: v as ColorTheme }))} />
+          </div>
+
+          {/* Typography */}
+          <div className="mb-6">
+            <FieldLabel>Typography</FieldLabel>
+            <TypographyPicker value={settings.typographyStyle} onChange={(v) => setSettings((s) => ({ ...s, typographyStyle: v as TypographyStyle }))} />
+          </div>
+        </div>
+
+        <SaveButton
+          saving={saving}
+          saved={saved}
+          onClick={() => patchSettings({
+            title:           settings.title,
+            subtitle:        settings.subtitle,
+            eventDate:       settings.eventDate,
+            coverPhotoId:    settings.coverPhotoId,
+            coverStyle:      settings.coverStyle,
+            galleryLayout:   settings.galleryLayout,
+            typographyStyle: settings.typographyStyle,
+            colorTheme:      settings.colorTheme,
+            tags:            settings.tags,
+          })}
+        />
       </Section>
     )
   }
@@ -390,13 +574,81 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
             label="Apply watermark to previews"
           />
         </div>
-        <PlaceholderField label="Watermark Style" hint="Custom watermark design — coming soon" />
+
+        {settings.watermarkEnabled && (
+          <div className="mb-6">
+            <FieldLabel>Watermark Preset</FieldLabel>
+            {watermarkPresets.length === 0 ? (
+              <div className="max-w-sm p-4 bg-stone-50 border border-dashed border-stone-200">
+                <p className="text-xs font-sans text-stone-400 mb-2">
+                  No watermark presets yet. The default FRAME text watermark will be used.
+                </p>
+                <a
+                  href="/dashboard/watermarks"
+                  className="text-xs font-sans text-stone-600 underline underline-offset-2 hover:text-stone-900 transition-colors"
+                >
+                  Manage watermarks →
+                </a>
+              </div>
+            ) : (
+              <div className="max-w-sm space-y-1.5">
+                <button
+                  onClick={() => setSettings((s) => ({ ...s, watermarkPresetId: null }))}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-sm font-sans border transition-colors ${
+                    !settings.watermarkPresetId
+                      ? 'border-stone-900 text-stone-900 bg-stone-50'
+                      : 'border-stone-200 text-stone-500 hover:border-stone-300'
+                  }`}
+                >
+                  <span>Default (FRAME text)</span>
+                  {!settings.watermarkPresetId && <Check size={13} strokeWidth={2.5} />}
+                </button>
+                {watermarkPresets.map((wp) => (
+                  <button
+                    key={wp.id}
+                    onClick={() => setSettings((s) => ({ ...s, watermarkPresetId: wp.id }))}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-sans border transition-colors ${
+                      settings.watermarkPresetId === wp.id
+                        ? 'border-stone-900 text-stone-900 bg-stone-50'
+                        : 'border-stone-200 text-stone-600 hover:border-stone-300'
+                    }`}
+                  >
+                    <img
+                      src={wp.previewUrl}
+                      alt=""
+                      className="w-8 h-8 object-contain bg-stone-200 shrink-0"
+                    />
+                    <span className="flex-1 text-left">{wp.name}</span>
+                    <span className="text-[10px] font-sans text-stone-400 shrink-0">
+                      {wp.sizePct}% · {wp.opacity}% opacity
+                    </span>
+                    {settings.watermarkPresetId === wp.id && <Check size={13} strokeWidth={2.5} className="shrink-0" />}
+                  </button>
+                ))}
+                <a
+                  href="/dashboard/watermarks"
+                  className="block mt-2 text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
+                >
+                  Manage watermarks →
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mb-5 max-w-sm p-4 bg-stone-50 border border-stone-100">
           <p className="text-xs font-sans text-stone-500 leading-relaxed">
             Original files are never served directly. All previews use signed URLs that expire automatically.
           </p>
         </div>
-        <SaveButton saving={saving} saved={saved} onClick={() => patchSettings({ watermarkEnabled: settings.watermarkEnabled })} />
+        <SaveButton
+          saving={saving}
+          saved={saved}
+          onClick={() => patchSettings({
+            watermarkEnabled:  settings.watermarkEnabled,
+            watermarkPresetId: settings.watermarkPresetId,
+          })}
+        />
       </Section>
     )
   }
@@ -617,6 +869,381 @@ function PasswordField({
       >
         Cancel
       </button>
+    </div>
+  )
+}
+
+// ── Shared: VisualCard ────────────────────────────────────────────────────────
+// A selectable card with a preview area at top, label + description below.
+
+function VisualCard({
+  selected,
+  onClick,
+  preview,
+  label,
+  description,
+}: {
+  selected:    boolean
+  onClick:     () => void
+  preview:     React.ReactNode
+  label:       string
+  description: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex-1 text-left border transition-all duration-150 overflow-hidden ${
+        selected
+          ? 'border-stone-900 ring-1 ring-stone-900'
+          : 'border-stone-200 hover:border-stone-400'
+      }`}
+    >
+      {/* Preview thumbnail */}
+      <div className="w-full overflow-hidden" style={{ height: 84 }}>
+        {preview}
+      </div>
+
+      {/* Label area */}
+      <div className={`px-2.5 py-2 border-t ${selected ? 'border-stone-200 bg-stone-50' : 'border-stone-100 bg-white'}`}>
+        <span className={`block text-[11px] font-sans font-medium leading-tight ${selected ? 'text-stone-900' : 'text-stone-600'}`}>
+          {label}
+        </span>
+        <span className="block text-[9px] font-sans text-stone-400 leading-tight mt-0.5">
+          {description}
+        </span>
+      </div>
+
+      {/* Selected indicator */}
+      {selected && (
+        <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-stone-900 flex items-center justify-center">
+          <Check size={9} strokeWidth={3} className="text-white" />
+        </div>
+      )}
+    </button>
+  )
+}
+
+// ── CoverStylePicker ──────────────────────────────────────────────────────────
+
+function CoverStylePreview({ style }: { style: string }) {
+  if (style === 'fullscreen') {
+    return (
+      <div className="w-full h-full relative" style={{ backgroundColor: '#44403c' }}>
+        {/* Simulated gradient overlay at bottom */}
+        <div
+          className="absolute inset-x-0 bottom-0"
+          style={{ height: '55%', background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%)' }}
+        />
+        {/* Title lines */}
+        <div className="absolute bottom-3 left-3 space-y-1.5">
+          <div className="h-[5px] w-14 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.85)' }} />
+          <div className="h-[3px] w-10 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (style === 'split') {
+    return (
+      <div className="w-full h-full flex" style={{ backgroundColor: '#faf9f7' }}>
+        {/* Left: text content */}
+        <div className="w-[46%] flex flex-col justify-center pl-3 gap-2">
+          <div className="h-[5px] w-11 rounded-full" style={{ backgroundColor: '#292524' }} />
+          <div className="space-y-1">
+            <div className="h-[3px] w-9 rounded-full"  style={{ backgroundColor: '#a8a29e' }} />
+            <div className="h-[3px] w-6 rounded-full"  style={{ backgroundColor: '#d6d3d1' }} />
+          </div>
+        </div>
+        {/* Right: photo */}
+        <div className="flex-1 h-full" style={{ backgroundColor: '#78716c' }} />
+      </div>
+    )
+  }
+
+  // minimal — centered text only
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-2" style={{ backgroundColor: '#faf9f7' }}>
+      <div className="h-[5px] w-16 rounded-full" style={{ backgroundColor: '#292524' }} />
+      <div className="h-[3px] w-11 rounded-full" style={{ backgroundColor: '#a8a29e' }} />
+      <div className="h-[3px] w-8  rounded-full" style={{ backgroundColor: '#d6d3d1' }} />
+    </div>
+  )
+}
+
+const COVER_STYLE_OPTIONS: { value: string; label: string; description: string }[] = [
+  { value: 'fullscreen', label: 'Fullscreen', description: 'Full-bleed hero with overlay' },
+  { value: 'split',      label: 'Split',      description: 'Text left, image right'       },
+  { value: 'minimal',    label: 'Minimal',    description: 'Centered text, no image'      },
+]
+
+function CoverStylePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2.5" style={{ maxWidth: 480 }}>
+      {COVER_STYLE_OPTIONS.map((opt) => (
+        <VisualCard
+          key={opt.value}
+          selected={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          label={opt.label}
+          description={opt.description}
+          preview={<CoverStylePreview style={opt.value} />}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── LayoutPicker ──────────────────────────────────────────────────────────────
+
+function LayoutPreview({ layout }: { layout: string }) {
+  if (layout === 'masonry') {
+    // Three columns of uneven-height blocks
+    return (
+      <div className="w-full h-full p-2 flex gap-1" style={{ backgroundColor: '#f5f5f4' }}>
+        <div className="flex-1 flex flex-col gap-1">
+          <div className="rounded-[1px]" style={{ backgroundColor: '#c4c0bc', flex: '0 0 45%' }} />
+          <div className="rounded-[1px]" style={{ backgroundColor: '#d6d3d1', flex: '0 0 25%' }} />
+          <div className="flex-1 rounded-[1px]" style={{ backgroundColor: '#e7e5e4' }} />
+        </div>
+        <div className="flex-1 flex flex-col gap-1">
+          <div className="rounded-[1px]" style={{ backgroundColor: '#e7e5e4', flex: '0 0 20%' }} />
+          <div className="rounded-[1px]" style={{ backgroundColor: '#c4c0bc', flex: '0 0 50%' }} />
+          <div className="flex-1 rounded-[1px]" style={{ backgroundColor: '#d6d3d1' }} />
+        </div>
+        <div className="flex-1 flex flex-col gap-1">
+          <div className="rounded-[1px]" style={{ backgroundColor: '#d6d3d1', flex: '0 0 35%' }} />
+          <div className="rounded-[1px]" style={{ backgroundColor: '#e7e5e4', flex: '0 0 20%' }} />
+          <div className="flex-1 rounded-[1px]" style={{ backgroundColor: '#c4c0bc' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (layout === 'editorial') {
+    // Wide feature spanning full width, then 2 equal below
+    return (
+      <div className="w-full h-full p-2 flex flex-col gap-1" style={{ backgroundColor: '#f5f5f4' }}>
+        {/* Feature photo: wide */}
+        <div className="rounded-[1px]" style={{ backgroundColor: '#a8a29e', flex: '0 0 52%' }} />
+        {/* Two equal below */}
+        <div className="flex gap-1" style={{ flex: 1 }}>
+          <div className="flex-1 rounded-[1px]" style={{ backgroundColor: '#d6d3d1' }} />
+          <div className="flex-1 rounded-[1px]" style={{ backgroundColor: '#e7e5e4' }} />
+        </div>
+      </div>
+    )
+  }
+
+  // uniform — 3×3 equal squares
+  return (
+    <div className="w-full h-full p-2 grid grid-cols-3 gap-1" style={{ backgroundColor: '#f5f5f4' }}>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-[1px]"
+          style={{ backgroundColor: i % 2 === 0 ? '#d6d3d1' : '#e7e5e4' }}
+        />
+      ))}
+    </div>
+  )
+}
+
+const LAYOUT_OPTIONS: { value: string; label: string; description: string }[] = [
+  { value: 'masonry',   label: 'Masonry',    description: 'Natural height flow'  },
+  { value: 'editorial', label: 'Editorial',  description: 'Feature + grid rows'  },
+  { value: 'uniform',   label: 'Uniform',    description: 'Equal square grid'    },
+]
+
+function LayoutPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2.5" style={{ maxWidth: 480 }}>
+      {LAYOUT_OPTIONS.map((opt) => (
+        <VisualCard
+          key={opt.value}
+          selected={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          label={opt.label}
+          description={opt.description}
+          preview={<LayoutPreview layout={opt.value} />}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── ColorThemePicker ──────────────────────────────────────────────────────────
+
+const COLOR_THEME_OPTIONS: { value: string; label: string; description: string; bg: string; text: string; accent: string }[] = [
+  { value: 'dark',  label: 'Dark',  description: 'Deep charcoal', bg: '#1C1917', text: '#d6d3d1', accent: '#C9A96E' },
+  { value: 'light', label: 'Light', description: 'Clean white',   bg: '#F7F5F2', text: '#292524', accent: '#78716c' },
+  { value: 'warm',  label: 'Warm',  description: 'Warm amber',    bg: '#181210', text: '#d6c5b0', accent: '#C9A96E' },
+]
+
+function ColorThemePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2.5" style={{ maxWidth: 480 }}>
+      {COLOR_THEME_OPTIONS.map((opt) => (
+        <VisualCard
+          key={opt.value}
+          selected={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          label={opt.label}
+          description={opt.description}
+          preview={
+            <div className="w-full h-full flex flex-col justify-between p-3" style={{ backgroundColor: opt.bg }}>
+              {/* Simulated title */}
+              <div className="h-[5px] w-12 rounded-full" style={{ backgroundColor: opt.text, opacity: 0.9 }} />
+              {/* Simulated photo blocks */}
+              <div className="flex gap-1">
+                <div className="flex-1 rounded-[1px]" style={{ backgroundColor: opt.text, opacity: 0.18, height: 28 }} />
+                <div className="flex-1 rounded-[1px]" style={{ backgroundColor: opt.text, opacity: 0.13, height: 28 }} />
+                <div className="flex-1 rounded-[1px]" style={{ backgroundColor: opt.text, opacity: 0.18, height: 28 }} />
+              </div>
+              {/* Accent line */}
+              <div className="h-[2px] w-6 rounded-full" style={{ backgroundColor: opt.accent }} />
+            </div>
+          }
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── TypographyPicker ──────────────────────────────────────────────────────────
+
+const TYPOGRAPHY_OPTIONS: { value: string; label: string; description: string; sample: string; className: string }[] = [
+  { value: 'serif',   label: 'Serif',   description: 'Editorial elegance',  sample: 'Gallery',  className: 'font-serif text-xl text-stone-800 leading-none' },
+  { value: 'modern',  label: 'Modern',  description: 'Light & airy',         sample: 'GALLERY', className: 'font-sans text-[10px] tracking-[0.25em] font-light text-stone-800 leading-none' },
+  { value: 'minimal', label: 'Minimal', description: 'Precise & structured', sample: 'GALLERY', className: 'font-sans text-[9px] tracking-[0.18em] font-semibold text-stone-800 leading-none' },
+]
+
+function TypographyPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2.5" style={{ maxWidth: 480 }}>
+      {TYPOGRAPHY_OPTIONS.map((opt) => (
+        <VisualCard
+          key={opt.value}
+          selected={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          label={opt.label}
+          description={opt.description}
+          preview={
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3" style={{ backgroundColor: '#faf9f7' }}>
+              <span className={opt.className}>{opt.sample}</span>
+              <div className="h-px w-8" style={{ backgroundColor: '#d6d3d1' }} />
+              <div className="h-[3px] w-14 rounded-full" style={{ backgroundColor: '#e7e5e4' }} />
+            </div>
+          }
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── CoverPhotoSelector ────────────────────────────────────────────────────────
+
+function CoverPhotoSelector({
+  galleryId,
+  coverPhotoId,
+  onChange,
+}: {
+  galleryId:    string
+  coverPhotoId: string | null
+  onChange:     (id: string | null) => void
+}) {
+  const [open,   setOpen]   = useState(false)
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
+  const [loading, setLoading] = useState(false)
+
+  async function loadPhotos() {
+    if (photos.length > 0) { setOpen(true); return }
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/galleries/${galleryId}/photos`)
+      if (!res.ok) return
+      const data = await res.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all: GalleryPhoto[] = [
+        ...(data.sections ?? []).flatMap((s: any) => s.photos),
+        ...(data.unsectioned ?? []),
+      ].map((p: any) => ({ id: p.id, thumbnailUrl: p.thumbnailUrl ?? null, filename: p.filename }))
+      setPhotos(all)
+      setOpen(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const selected = photos.find((p) => p.id === coverPhotoId)
+
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        {/* Thumbnail preview of current cover */}
+        {coverPhotoId && selected?.thumbnailUrl && (
+          <div className="relative w-16 h-12 overflow-hidden bg-stone-100 shrink-0">
+            <img src={selected.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+        {coverPhotoId && !selected && (
+          <div className="w-16 h-12 bg-stone-100 shrink-0" />
+        )}
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadPhotos}
+            disabled={loading}
+            className="px-3 py-2 text-xs font-sans border border-stone-200 text-stone-700 hover:border-stone-400 transition-colors disabled:opacity-40"
+          >
+            {loading ? 'Loading…' : coverPhotoId ? 'Change' : 'Select cover photo'}
+          </button>
+          {coverPhotoId && (
+            <button
+              onClick={() => onChange(null)}
+              className="text-stone-400 hover:text-stone-700 transition-colors"
+              aria-label="Remove cover photo"
+            >
+              <X size={14} strokeWidth={1.5} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Photo grid picker */}
+      {open && (
+        <div className="mt-3 max-w-sm border border-stone-200 bg-white">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-stone-100">
+            <span className="text-xs font-sans text-stone-500">Select a cover photo</span>
+            <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-700 transition-colors">
+              <X size={13} strokeWidth={1.5} />
+            </button>
+          </div>
+          {photos.length === 0 ? (
+            <p className="px-3 py-4 text-xs font-sans text-stone-400">No ready photos in this gallery yet.</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-1 p-2 max-h-64 overflow-y-auto">
+              {photos.map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => { onChange(photo.id); setOpen(false) }}
+                  className={`relative aspect-square overflow-hidden bg-stone-100 ${
+                    coverPhotoId === photo.id ? 'ring-2 ring-stone-900' : 'hover:opacity-80'
+                  }`}
+                >
+                  {photo.thumbnailUrl && (
+                    <img src={photo.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {coverPhotoId === photo.id && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <Check size={14} strokeWidth={2.5} className="text-white" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

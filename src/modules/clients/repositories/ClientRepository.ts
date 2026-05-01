@@ -1,16 +1,25 @@
+import { GalleryClient } from '@prisma/client'
 import { prisma } from '../../../infrastructure/database/db'
 
 export const ClientRepository = {
   /** Find existing client, or register a new one. Token is preserved for returning clients. */
-  async findOrCreate(galleryId: string, email: string, name: string) {
+  async findOrCreate(galleryId: string, email: string, name: string): Promise<{ client: GalleryClient; isNew: boolean }> {
     const existing = await prisma.galleryClient.findUnique({
       where: { galleryId_email: { galleryId, email } },
     })
-    if (existing) return existing
+    if (existing) {
+      // Touch lastAccessedAt on every return visit
+      const updated = await prisma.galleryClient.update({
+        where: { id: existing.id },
+        data:  { lastAccessedAt: new Date() },
+      })
+      return { client: updated, isNew: false }
+    }
 
-    return prisma.galleryClient.create({
+    const created = await prisma.galleryClient.create({
       data: { galleryId, email, name },
     })
+    return { client: created, isNew: true }
   },
 
   /** Resolve a client by their access token. Returns null if token is invalid. */
@@ -27,10 +36,12 @@ export const ClientRepository = {
       where:   { galleryId },
       orderBy: { createdAt: 'asc' },
       select: {
-        id:          true,
-        name:        true,
-        email:       true,
-        createdAt:   true,
+        id:             true,
+        name:           true,
+        email:          true,
+        createdAt:      true,
+        lastAccessedAt: true,
+        _count:         { select: { favorites: true, comments: true } },
         selections: {
           where:   { galleryId },
           orderBy: { createdAt: 'desc' },

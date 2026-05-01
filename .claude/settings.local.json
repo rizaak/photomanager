@@ -12,7 +12,13 @@
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(list\\(p.get\\('exports',{}\\).keys\\(\\)\\), indent=2\\)\\)\")",
       "Skill(codex:setup)",
       "Bash(psql -d frame -c \"\\\\d \\\\\"Photo\\\\\"\")",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Read(//Applications/Postgres.app/Contents/Versions/latest/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(npx tsx:*)",
+      "Bash(find /Users/isaaclopez/Documents/Isaac/PhotoManager/app/api/galleries/[id] -name \"photos*\" -o -name \"route.ts\")",
+      "Bash(grep:*)",
+      "Bash(find:*)"
     ]
   }
 }

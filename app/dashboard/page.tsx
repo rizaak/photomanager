@@ -1,38 +1,53 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { Plus, Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { GalleryCard } from '@/components/gallery/GalleryCard'
+import { GalleryFilterBar } from '@/components/dashboard/GalleryFilterBar'
+import { GalleryPagination } from '@/components/dashboard/GalleryPagination'
+import { DashboardGalleryList } from '@/components/dashboard/DashboardGalleryList'
 import { GalleryService } from '@/src/modules/galleries/services/GalleryService'
+import { GalleryFolderService } from '@/src/modules/galleries/services/GalleryFolderService'
+import { PresetRepository } from '@/src/modules/presets/repositories/PresetRepository'
 import { getAuthenticatedPhotographer } from '@/src/modules/auth/utils/getAuthenticatedPhotographer'
-import { getGalleryAction } from '@/lib/gallery-utils'
-import type { Gallery } from '@/lib/types'
+import type { GalleryListQuery } from '@/src/modules/galleries/services/GalleryService'
 
-const ACTION_PRIORITY: Record<string, number> = {
-  deliver:   0,
-  selecting: 1,
-  awaiting:  2,
-  delivered: 3,
-  share:     4,
-  archived:  5,
-}
-
-function sortByPriority(galleries: Gallery[]) {
-  return [...galleries].sort(
-    (a, b) => (ACTION_PRIORITY[getGalleryAction(a)] ?? 9) - (ACTION_PRIORITY[getGalleryAction(b)] ?? 9),
-  )
-}
-
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const photographerId = await getAuthenticatedPhotographer()
-  const all = await GalleryService.listGalleries(photographerId)
+  const raw = await searchParams
 
-  const active   = sortByPriority(all.filter((g) => g.status === 'active'))
-  const drafts   = all.filter((g) => g.status === 'draft')
-  const archived = all.filter((g) => g.status === 'archived')
+  // Flatten to string values only
+  const query: GalleryListQuery = {
+    search:          str(raw.q),
+    status:          str(raw.status),
+    downloadEnabled: str(raw.downloadEnabled),
+    hasSelections:   str(raw.hasSelections),
+    tags:            str(raw.tags),
+    folder:          str(raw.folder),
+    sort:            str(raw.sort),
+    page:            str(raw.page),
+  }
 
-  const readyToDeliver = active.filter(
-    (g) => !g.downloadEnabled && g.clientActivity === 'submitted',
-  )
+  const isFiltered = !!(query.search || query.status || query.tags || query.hasSelections || query.downloadEnabled || (query.sort && query.sort !== 'newest'))
+
+  const [result, allTags, folders, presets] = await Promise.all([
+    GalleryService.listGalleries(photographerId, query),
+    GalleryService.getDistinctTags(photographerId),
+    GalleryFolderService.list(photographerId),
+    PresetRepository.findAll(photographerId),
+  ])
+
+  const { galleries, total, page, pageSize, totalPages } = result
+
+  // Attention strip — only when browsing unfiltered so it's always visible
+  const readyToDeliver = isFiltered
+    ? []
+    : galleries.filter((g) => !g.downloadEnabled && g.clientActivity === 'submitted')
+
+  const activeFolderId = query.folder
 
   return (
     <div className="px-10 py-10">
@@ -41,7 +56,11 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-serif text-3xl text-stone-900 mb-1">Your Galleries</h1>
-          <p className="text-sm text-stone-400 font-sans">{all.length} galleries</p>
+          <p className="text-sm text-stone-400 font-sans">
+            {isFiltered
+              ? `${total} result${total !== 1 ? 's' : ''}`
+              : `${total} ${total === 1 ? 'gallery' : 'galleries'}`}
+          </p>
         </div>
         <Link href="/dashboard/new-gallery">
           <Button variant="primary" size="md">
@@ -81,48 +100,44 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* ── Active ── */}
-      {active.length > 0 && (
-        <section className="mb-12">
-          <h2 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Active</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {active.map((g) => <GalleryCard key={g.id} gallery={g} />)}
-          </div>
-        </section>
-      )}
+      {/* ── Filter bar ── */}
+      <div className="mb-8">
+        <Suspense fallback={<FilterBarPlaceholder />}>
+          <GalleryFilterBar allTags={allTags} />
+        </Suspense>
+      </div>
 
-      {/* ── Drafts ── */}
-      {drafts.length > 0 && (
-        <section className="mb-12">
-          <h2 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Drafts</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {drafts.map((g) => <GalleryCard key={g.id} gallery={g} />)}
-          </div>
-        </section>
-      )}
+      {/* ── Gallery grid + folder strip + bulk bar ── */}
+      <DashboardGalleryList
+        key={JSON.stringify(query)}
+        galleries={galleries}
+        folders={folders}
+        presets={presets.map((p) => ({ id: p.id, name: p.name }))}
+        activeFolderId={activeFolderId}
+      />
 
-      {/* ── Archived ── */}
-      {archived.length > 0 && (
-        <section>
-          <h2 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Archived</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 opacity-60">
-            {archived.map((g) => <GalleryCard key={g.id} gallery={g} />)}
-          </div>
-        </section>
+      {/* ── Pagination ── */}
+      {totalPages > 1 && (
+        <Suspense fallback={null}>
+          <GalleryPagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} />
+        </Suspense>
       )}
+    </div>
+  )
+}
 
-      {all.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-32 gap-3">
-          <p className="font-serif text-stone-400 text-lg">No galleries yet</p>
-          <p className="text-sm text-stone-400 font-sans">Create your first gallery to get started</p>
-          <Link href="/dashboard/new-gallery" className="mt-2">
-            <Button variant="primary" size="md">
-              <Plus size={15} strokeWidth={2} />
-              New Gallery
-            </Button>
-          </Link>
-        </div>
-      )}
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function str(v: string | string[] | undefined): string | undefined {
+  if (Array.isArray(v)) return v[0]
+  return v
+}
+
+function FilterBarPlaceholder() {
+  return (
+    <div className="space-y-3">
+      <div className="h-9 bg-stone-100 animate-pulse" />
+      <div className="h-7 bg-stone-50 animate-pulse" style={{ width: '60%' }} />
     </div>
   )
 }

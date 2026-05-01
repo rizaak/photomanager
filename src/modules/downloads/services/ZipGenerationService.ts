@@ -21,11 +21,14 @@ export const ZipGenerationService = {
       throw new Error('No ready photos in selection')
     }
 
-    // Build ZIP — download originals sequentially to limit memory pressure
+    // Build ZIP using watermarked previews — never expose originals to clients
     const zip = new JSZip()
 
     for (const photo of photos) {
-      const buffer = await storageProvider.download(photo.originalKey)
+      // Prefer watermarked version; skip photos where it is not yet generated
+      const key = photo.watermarkedKey ?? null
+      if (!key) continue
+      const buffer = await storageProvider.download(key)
       zip.file(photo.filename, buffer)
     }
 

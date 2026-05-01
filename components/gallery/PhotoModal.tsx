@@ -1,14 +1,21 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { X, ChevronLeft, ChevronRight, Heart, Download } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Heart, Send, Pencil, Trash2, Loader2, Download } from 'lucide-react'
 import type { Photo } from '@/lib/types'
 
 interface PhotoModalProps {
   photos: Photo[]
   initialIndex: number
+  favoritedIds: Set<string>
+  photoComments?: Map<string, { id: string; body: string }>
+  allowComments?: boolean
+  allowDownload?: boolean
   onClose: () => void
-  onToggleSelect: (id: string) => void
+  onFavoriteToggle?: (photoId: string) => void
+  onAddComment?: (photoId: string, body: string) => Promise<void>
+  onUpdateComment?: (commentId: string, body: string, photoId: string) => Promise<void>
+  onDeleteComment?: (commentId: string, photoId: string) => Promise<void>
 }
 
 // How long chrome stays visible after last interaction
@@ -20,7 +27,7 @@ const SWIPE_Y = 60
 
 function getPhotoStyle(photo: Photo): React.CSSProperties {
   const isPortrait = photo.height >= photo.width
-  const MAX_H = 'calc(100vh - 120px)'
+  const MAX_H = 'calc(100vh - 160px)'
   const MAX_W = 'calc(100vw - 80px)'
   return {
     aspectRatio: `${photo.width} / ${photo.height}`,
@@ -30,18 +37,43 @@ function getPhotoStyle(photo: Photo): React.CSSProperties {
   }
 }
 
-export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: PhotoModalProps) {
+export function PhotoModal({
+  photos,
+  initialIndex,
+  favoritedIds,
+  photoComments,
+  allowComments,
+  allowDownload,
+  onClose,
+  onFavoriteToggle,
+  onAddComment,
+  onUpdateComment,
+  onDeleteComment,
+}: PhotoModalProps) {
   const [index, setIndex] = useState(initialIndex)
   const [fading, setFading] = useState(false)
   const [chromeVisible, setChromeVisible] = useState(true)
   const [downloading, setDownloading] = useState(false)
 
-  const chromeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  // Swipe tracking
-  const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  const swipeFired = useRef(false)
+  // Comment state
+  const [editingComment, setEditingComment] = useState(false)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [commentSaving, setCommentSaving] = useState(false)
+  const [commentDeleting, setCommentDeleting] = useState(false)
 
-  const photo = photos[index]
+  const chromeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const swipeStart  = useRef<{ x: number; y: number } | null>(null)
+  const swipeFired  = useRef(false)
+
+  const photo          = photos[index]
+  const favorited      = favoritedIds.has(photo.id)
+  const existingComment = photoComments?.get(photo.id) ?? null
+
+  // Reset comment editing state when navigating to a different photo
+  useEffect(() => {
+    setEditingComment(false)
+    setCommentDraft('')
+  }, [index])
 
   async function handleDownload() {
     if (downloading) return
@@ -62,6 +94,42 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
     } finally {
       setDownloading(false)
     }
+  }
+
+  async function handleSaveComment() {
+    if (!commentDraft.trim() || commentSaving) return
+    setCommentSaving(true)
+    try {
+      if (existingComment) {
+        await onUpdateComment?.(existingComment.id, commentDraft.trim(), photo.id)
+      } else {
+        await onAddComment?.(photo.id, commentDraft.trim())
+      }
+      setEditingComment(false)
+      setCommentDraft('')
+    } finally {
+      setCommentSaving(false)
+    }
+  }
+
+  async function handleDeleteComment() {
+    if (!existingComment || commentDeleting) return
+    setCommentDeleting(true)
+    try {
+      await onDeleteComment?.(existingComment.id, photo.id)
+    } finally {
+      setCommentDeleting(false)
+    }
+  }
+
+  function startEdit() {
+    setCommentDraft(existingComment?.body ?? '')
+    setEditingComment(true)
+  }
+
+  function cancelEdit() {
+    setEditingComment(false)
+    setCommentDraft('')
   }
 
   // ── Chrome auto-hide ─────────────────────────────────────────────────────
@@ -93,7 +161,7 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
   const goPrev = useCallback(() => navigate(-1), [navigate])
   const goNext = useCallback(() => navigate(1), [navigate])
 
-  // ── Swipe gesture (pointer events work for mouse + touch + stylus) ────────
+  // ── Swipe gesture ────────────────────────────────────────────────────────
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     swipeStart.current = { x: e.clientX, y: e.clientY }
     swipeFired.current = false
@@ -113,7 +181,6 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
     [goNext, goPrev],
   )
 
-  // Swallow the click that follows a successful swipe so it doesn't close the modal
   const handleBackdropClick = useCallback(() => {
     if (swipeFired.current) { swipeFired.current = false; return }
     onClose()
@@ -132,26 +199,28 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-      if (e.key === 'ArrowLeft') goPrev()
-      if (e.key === 'ArrowRight') goNext()
-      if (e.key === 'f' || e.key === 'F') onToggleSelect(photo.id)
+      if (e.key === 'Escape') {
+        if (editingComment) { cancelEdit(); return }
+        onClose()
+      }
+      if (e.key === 'ArrowLeft'  && !editingComment) goPrev()
+      if (e.key === 'ArrowRight' && !editingComment) goNext()
+      if ((e.key === 'h' || e.key === 'H') && !editingComment) onFavoriteToggle?.(photo.id)
       revealChrome()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, goPrev, goNext, onToggleSelect, photo.id, revealChrome])
+  }, [onClose, goPrev, goNext, onFavoriteToggle, photo.id, revealChrome, editingComment])
 
   return (
     <div
       className="fixed inset-0 z-50"
       style={{ backgroundColor: '#0D0C0B', animation: 'modalReveal 680ms cubic-bezier(0.22,1,0.36,1) forwards' }}
-      // Any mouse movement or touch reveals chrome
       onMouseMove={revealChrome}
       onTouchStart={revealChrome}
     >
 
-      {/* ── Floating header veil — gradient, not a bar ────────────────────── */}
+      {/* ── Header ────────────────────────────────────────────────────────── */}
       <header
         className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-4 pb-14 pointer-events-none"
         style={{
@@ -160,7 +229,6 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           pointerEvents: chromeVisible ? 'auto' : 'none',
         }}
       >
-        {/* Counter only — filename ("IMG_1001.jpg") is meaningless to the client */}
         <span className="text-stone-600 text-xs font-sans tabular-nums select-none pointer-events-none">
           {index + 1}&thinsp;/&thinsp;{photos.length}
         </span>
@@ -173,14 +241,14 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
         </button>
       </header>
 
-      {/* ── Photo area — fills full viewport ─────────────────────────────── */}
+      {/* ── Photo area ────────────────────────────────────────────────────── */}
       <div
         className="absolute inset-0 flex items-center justify-center overflow-hidden"
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onClick={handleBackdropClick}
       >
-        {/* ── Left nav zone — full height, wide enough to tap easily on mobile ── */}
+        {/* Left nav */}
         <button
           className="absolute left-0 top-0 h-full w-1/4 z-10 flex items-center justify-start pl-3"
           style={{ ...chromeFade, cursor: index === 0 ? 'default' : 'pointer' }}
@@ -196,32 +264,33 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
           </div>
         </button>
 
-        {/* ── Photo — crossfades on navigate ────────────────────────────────── */}
+        {/* Photo */}
         <div
           className="relative"
           onClick={(e) => e.stopPropagation()}
           style={{
             opacity: fading ? 0 : 1,
-            // Fast exit, slow entrance — like a breath
-            transition: fading
-              ? 'opacity 180ms ease-in'
-              : 'opacity 480ms cubic-bezier(0.22,1,0.36,1)',
+            transition: fading ? 'opacity 180ms ease-in' : 'opacity 480ms cubic-bezier(0.22,1,0.36,1)',
           }}
         >
           <div className={`${photo.placeholderColor} relative`} style={getPhotoStyle(photo)}>
-            {/* Real watermarked image — baked-in FRAME watermark from worker */}
             {photo.watermarkedUrl && (
               <img
                 src={photo.watermarkedUrl}
                 alt=""
                 draggable={false}
                 className="absolute inset-0 w-full h-full object-contain opacity-0"
-                style={{ transition: 'opacity 500ms ease' }}
+                style={{
+                  transition: 'opacity 500ms ease',
+                  pointerEvents: 'none',
+                  WebkitUserDrag: 'none',
+                } as React.CSSProperties}
+                onContextMenu={(e) => e.preventDefault()}
+                ref={(img) => { if (img?.complete) img.style.opacity = '1' }}
                 onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '1' }}
               />
             )}
 
-            {/* CSS watermark fallback — only for photos not yet processed */}
             {!photo.watermarkedUrl && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
                 <span className="text-white/[0.04] font-serif text-6xl rotate-[-30deg] tracking-[0.3em]">
@@ -230,20 +299,21 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
               </div>
             )}
 
-            {/* Selection dot — minimal, no button chrome */}
+            {/* Favorited glow dot */}
             <div
-              className="absolute top-3 right-3 w-2 h-2 rounded-full bg-accent"
+              className="absolute top-3 right-3 w-2 h-2 rounded-full"
               style={{
-                opacity: photo.selected ? 1 : 0,
-                boxShadow: photo.selected ? '0 0 8px rgba(201,169,110,0.7)' : 'none',
-                transform: photo.selected ? 'scale(1)' : 'scale(0.4)',
+                backgroundColor: '#C9A96E',
+                opacity: favorited ? 1 : 0,
+                boxShadow: favorited ? '0 0 8px rgba(201,169,110,0.7)' : 'none',
+                transform: favorited ? 'scale(1)' : 'scale(0.4)',
                 transition: 'opacity 400ms ease, transform 400ms cubic-bezier(0.34,1.56,0.64,1), box-shadow 400ms ease',
               }}
             />
           </div>
         </div>
 
-        {/* ── Right nav zone ─────────────────────────────────────────────────── */}
+        {/* Right nav */}
         <button
           className="absolute right-0 top-0 h-full w-1/4 z-10 flex items-center justify-end pr-3"
           style={{ ...chromeFade, cursor: index === photos.length - 1 ? 'default' : 'pointer' }}
@@ -260,50 +330,125 @@ export function PhotoModal({ photos, initialIndex, onClose, onToggleSelect }: Ph
         </button>
       </div>
 
-      {/* ── Floating footer veil ─────────────────────────────────────────── */}
+      {/* ── Footer ────────────────────────────────────────────────────────── */}
       <footer
-        className="absolute bottom-0 inset-x-0 z-20 flex items-center justify-between px-5 pt-14 pb-5"
+        className="absolute bottom-0 inset-x-0 z-20 px-5 pt-14 pb-6"
         style={{
-          background: 'linear-gradient(to top, rgba(13,12,11,0.75) 0%, transparent 100%)',
+          background: 'linear-gradient(to top, rgba(13,12,11,0.85) 0%, transparent 100%)',
           ...chromeFade,
           pointerEvents: chromeVisible ? 'auto' : 'none',
         }}
       >
-        {/* Heart only — filled state communicates selection without a label */}
-        <button
-          onClick={() => onToggleSelect(photo.id)}
-          className={`transition-colors duration-200 ${
-            photo.selected ? 'text-accent' : 'text-stone-500 hover:text-stone-300'
-          }`}
-          aria-label={photo.selected ? 'Deselect photo' : 'Select photo'}
-        >
-          <Heart
-            size={18}
-            strokeWidth={photo.selected ? 0 : 1.25}
-            style={{
-              fill: photo.selected ? '#C9A96E' : 'transparent',
-              transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
-              transform: photo.selected ? 'scale(1.18)' : 'scale(1)',
-            }}
-          />
-        </button>
+        <div className="flex items-center justify-between">
+          {/* Heart — favorite toggle */}
+          <button
+            onClick={() => onFavoriteToggle?.(photo.id)}
+            className="transition-colors duration-200 text-stone-500 hover:text-stone-300"
+            aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
+          >
+            <Heart
+              size={18}
+              strokeWidth={favorited ? 0 : 1.25}
+              style={{
+                fill:       favorited ? '#C9A96E' : 'transparent',
+                color:      favorited ? '#C9A96E' : undefined,
+                transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+                transform:  favorited ? 'scale(1.18)' : 'scale(1)',
+              }}
+            />
+          </button>
 
-        {/* Download — fetches a short-lived signed URL, never exposes raw R2 path */}
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="text-stone-500 hover:text-stone-300 transition-colors duration-200 disabled:opacity-40"
-          aria-label="Download original"
-        >
-          <Download
-            size={17}
-            strokeWidth={1.25}
-            style={{
-              transform: downloading ? 'translateY(2px)' : 'translateY(0)',
-              transition: 'transform 300ms ease',
-            }}
-          />
-        </button>
+          {/* Download — for photographer preview context */}
+          {allowDownload && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="text-stone-500 hover:text-stone-300 transition-colors duration-200 disabled:opacity-40"
+              aria-label="Download original"
+            >
+              <Download
+                size={17}
+                strokeWidth={1.25}
+                style={{
+                  transform: downloading ? 'translateY(2px)' : 'translateY(0)',
+                  transition: 'transform 300ms ease',
+                }}
+              />
+            </button>
+          )}
+        </div>
+
+        {/* Comment section — only when favorited and allowComments */}
+        {allowComments && favorited && (
+          <div className="mt-4">
+            {editingComment ? (
+              <div className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveComment()
+                    if (e.key === 'Escape') cancelEdit()
+                  }}
+                  placeholder="Add a note for your photographer…"
+                  maxLength={2000}
+                  className="flex-1 bg-transparent border-b border-stone-700 text-xs font-sans text-stone-300 placeholder-stone-700 focus:outline-none focus:border-stone-500 pb-0.5 transition-colors duration-200"
+                  style={{ caretColor: '#C9A96E' }}
+                />
+                <button
+                  onClick={handleSaveComment}
+                  disabled={!commentDraft.trim() || commentSaving}
+                  className="text-stone-500 hover:text-stone-300 disabled:opacity-30 transition-colors duration-200"
+                  aria-label="Save note"
+                >
+                  {commentSaving
+                    ? <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                    : <Send size={12} strokeWidth={1.5} />
+                  }
+                </button>
+                <button
+                  onClick={cancelEdit}
+                  className="text-stone-600 hover:text-stone-400 transition-colors duration-200"
+                  aria-label="Cancel"
+                >
+                  <X size={12} strokeWidth={1.5} />
+                </button>
+              </div>
+            ) : existingComment ? (
+              <div className="flex items-center gap-2.5 group/note">
+                <p className="flex-1 text-xs font-sans text-stone-500 truncate">
+                  {existingComment.body}
+                </p>
+                <button
+                  onClick={startEdit}
+                  className="opacity-0 group-hover/note:opacity-100 text-stone-600 hover:text-stone-400 transition-all duration-200"
+                  aria-label="Edit note"
+                >
+                  <Pencil size={11} strokeWidth={1.5} />
+                </button>
+                <button
+                  onClick={handleDeleteComment}
+                  disabled={commentDeleting}
+                  className="opacity-0 group-hover/note:opacity-100 text-stone-600 hover:text-red-500 disabled:opacity-40 transition-all duration-200"
+                  aria-label="Delete note"
+                >
+                  {commentDeleting
+                    ? <Loader2 size={11} strokeWidth={1.5} className="animate-spin" />
+                    : <Trash2 size={11} strokeWidth={1.5} />
+                  }
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={startEdit}
+                className="text-xs font-sans text-stone-700 hover:text-stone-500 transition-colors duration-200"
+              >
+                Add a note…
+              </button>
+            )}
+          </div>
+        )}
       </footer>
     </div>
   )

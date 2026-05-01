@@ -2,6 +2,8 @@ import { SelectionWorkflow } from '@prisma/client'
 import { storageProvider } from '../../../infrastructure/storage/StorageProvider'
 import { SelectionRepository } from '../repositories/SelectionRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
+import { QueueProvider } from '../../../infrastructure/queue/QueueProvider'
+import { ActivityService } from '../../activity/services/ActivityService'
 
 const URL_EXPIRY = 3600
 
@@ -76,5 +78,22 @@ export const WorkflowService = {
     if (!sel) throw Object.assign(new Error('No submitted selection found'), { status: 404 })
 
     await SelectionRepository.updateWorkflowState(sel.id, newState)
+
+    // When delivered: notify the client that their finals are ready
+    if (newState === SelectionWorkflow.DELIVERED) {
+      const gallery = await GalleryRepository.findDetail(galleryId)
+      const finalCount = sel.items.filter((i) => i.photo.editStatus === 'FINAL_READY').length
+
+      ActivityService.log(galleryId, 'FINALS_READY', { finalCount })
+
+      if (sel.clientEmail && sel.clientEmail !== 'anonymous@gallery.local') {
+        QueueProvider.enqueueNotification('FINALS_READY', {
+          galleryId,
+          clientEmail:  sel.clientEmail,
+          galleryTitle: gallery?.title ?? '',
+          finalCount,
+        }).catch((err) => console.error('[WorkflowService] enqueue FINALS_READY:', err))
+      }
+    }
   },
 }

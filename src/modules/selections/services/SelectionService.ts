@@ -29,10 +29,26 @@ export const SelectionService = {
     const client    = await resolveClient(clientToken)
     const selection = await SelectionRepository.findOrCreate(galleryId, client.email, client.name, client.id)
     const photoIds  = await SelectionRepository.getPhotoIds(selection.id)
+
+    // If submitted, expose workflow progress + how many finals are ready
+    let workflowState: string | null = null
+    let finalsCount = 0
+    if (selection.submittedAt) {
+      const workflow = await SelectionRepository.findWorkflowForClient(galleryId, client.email)
+      if (workflow) {
+        workflowState = workflow.workflowState
+        finalsCount   = workflow.items.filter(
+          (i) => i.photo.finalKey && i.photo.editStatus === 'FINAL_READY',
+        ).length
+      }
+    }
+
     return {
-      selectionId:  selection.id,
+      selectionId:   selection.id,
       photoIds,
-      submittedAt:  selection.submittedAt?.toISOString() ?? null,
+      submittedAt:   selection.submittedAt?.toISOString() ?? null,
+      workflowState,
+      finalsCount,
     }
   },
 
@@ -45,10 +61,12 @@ export const SelectionService = {
 
     if (photoIds.includes(photoId)) {
       await SelectionRepository.removePhoto(selection.id, photoId)
+      ActivityService.log(galleryId, 'PHOTO_DESELECTED', { photoId })
       return { photoId, selected: false }
     }
 
     await SelectionRepository.addPhoto(selection.id, photoId)
+    ActivityService.log(galleryId, 'PHOTO_SELECTED', { photoId })
     return { photoId, selected: true }
   },
 
