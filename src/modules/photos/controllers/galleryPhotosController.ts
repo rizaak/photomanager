@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GalleryPhotosService } from '../services/GalleryPhotosService'
+import { getAuthenticatedPhotographer } from '../../auth/utils/getAuthenticatedPhotographer'
 import type { PhotoListParams } from '../repositories/PhotoRepository'
 
 const VALID_STATUSES = new Set(['processing', 'ready', 'selected', 'editing', 'final_ready', 'failed'])
@@ -36,8 +37,15 @@ export async function handleGetGalleryPhotos(
       return NextResponse.json(data)
     }
 
-    // Legacy mode — full load for client gallery view and cover photo selector
-    const data = await GalleryPhotosService.getForGallery(id)
+    // Full gallery load — filter hidden sections for unauthenticated (public) clients.
+    // Authenticated photographers get all sections (for cover photo selector, etc.).
+    let isPhotographer = false
+    try {
+      await getAuthenticatedPhotographer()
+      isPhotographer = true
+    } catch { /* public access */ }
+
+    const data = await GalleryPhotosService.getForGallery(id, { publicOnly: !isPhotographer })
     if (!data) {
       return NextResponse.json({ error: 'Gallery not found' }, { status: 404 })
     }

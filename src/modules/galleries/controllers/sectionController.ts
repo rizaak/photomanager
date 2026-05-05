@@ -26,11 +26,12 @@ export async function handleCreateSection(
   let photographerId: string
   try { photographerId = await auth() } catch { return err401() }
   const { id } = await params
-  const body  = await req.json().catch(() => ({}))
-  const title = (body?.title ?? '').trim()
+  const body             = await req.json().catch(() => ({}))
+  const title            = (body?.title ?? '').trim()
+  const visibleToClient  = typeof body?.visibleToClient === 'boolean' ? body.visibleToClient : undefined
   if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
   try {
-    const section = await GallerySectionService.createSection(id, photographerId, title)
+    const section = await GallerySectionService.createSection(id, photographerId, title, visibleToClient)
     return NextResponse.json(section, { status: 201 })
   } catch (err) {
     const status = (err as { status?: number }).status ?? 500
@@ -45,11 +46,26 @@ export async function handleUpdateSection(
   let photographerId: string
   try { photographerId = await auth() } catch { return err401() }
   const { id, sectionId } = await params
-  const body  = await req.json().catch(() => ({}))
-  const title = (body?.title ?? '').trim()
-  if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
+  const body = await req.json().catch(() => ({}))
+
+  const updateData: { title?: string; visibleToClient?: boolean } = {}
+
+  if (body?.title !== undefined) {
+    const title = String(body.title).trim()
+    if (!title) return NextResponse.json({ error: 'title cannot be empty' }, { status: 400 })
+    updateData.title = title
+  }
+
+  if (typeof body?.visibleToClient === 'boolean') {
+    updateData.visibleToClient = body.visibleToClient
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+  }
+
   try {
-    const section = await GallerySectionService.renameSection(sectionId, id, photographerId, title)
+    const section = await GallerySectionService.updateSection(sectionId, id, photographerId, updateData)
     return NextResponse.json(section)
   } catch (err) {
     const status = (err as { status?: number }).status ?? 500

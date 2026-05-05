@@ -1,9 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Eye, Settings, Upload } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { ShareButton } from '@/components/gallery/ShareButton'
 import { GalleryService } from '@/src/modules/galleries/services/GalleryService'
 import { GallerySectionService } from '@/src/modules/galleries/services/GallerySectionService'
 import { GalleryPhotosService } from '@/src/modules/photos/services/GalleryPhotosService'
@@ -22,14 +21,14 @@ const WORKFLOW_LABEL: Record<string, string> = {
 }
 
 export default async function GalleryManagementPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+  const { id }         = await params
   const photographerId = await getAuthenticatedPhotographer()
-  const gallery = await GalleryService.getDetail(id, photographerId)
+  const gallery        = await GalleryService.getDetail(id, photographerId)
 
   if (!gallery) notFound()
 
-  const [clients, initialPhotosData, allSections, watermarkPresets] = await Promise.all([
-    ClientService.listForGallery(id),
+  const [clientCount, initialPhotosData, allSections, watermarkPresets] = await Promise.all([
+    ClientService.listForGallery(id).then((c) => c.length),
     GalleryPhotosService.listForDashboard(id, {}),
     GallerySectionService.listForGallery(id),
     WatermarkService.list(photographerId),
@@ -38,66 +37,41 @@ export default async function GalleryManagementPage({ params }: { params: Promis
   const totalPhotos = initialPhotosData.total
   const sel         = gallery.selection
   const isSubmitted = !!sel?.submittedAt
+  const coverUrl    = gallery.coverUrl ?? null
 
   return (
     <div className="min-h-screen">
 
-      {/* ── Top bar ───────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-white border-b border-stone-200 px-10 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-1.5 text-stone-400 hover:text-stone-700 text-sm font-sans transition-colors"
-          >
-            <ArrowLeft size={14} strokeWidth={1.5} />
-            Galleries
-          </Link>
-          <span className="text-stone-200">/</span>
-          <span className="text-sm font-sans text-stone-700 font-medium">{gallery.title}</span>
-          <Badge variant={gallery.status.toLowerCase() as GalleryStatus} />
-        </div>
+      {/* ── Cover header ──────────────────────────────────────────────────── */}
+      <div className="relative h-48 bg-stone-100 overflow-hidden">
+        {coverUrl ? (
+          <img src={coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-stone-200 to-stone-300" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
-        <div className="flex items-center gap-2">
-          <Link href={`/dashboard/gallery/${id}/upload`}>
-            <Button variant="primary" size="sm">
-              <Upload size={13} strokeWidth={1.5} />
-              Upload
-            </Button>
-          </Link>
-          <Link href={`/gallery/${gallery.shareToken}?preview=1`} target="_blank">
-            <Button variant="ghost" size="sm">
-              <Eye size={13} strokeWidth={1.5} />
-              Preview
-            </Button>
-          </Link>
-          <ShareButton shareToken={gallery.shareToken} />
-          <Link href={`/dashboard/gallery/${id}/settings`}>
-            <Button variant="ghost" size="sm">
-              <Settings size={13} strokeWidth={1.5} />
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* ── Gallery info ──────────────────────────────────────────────────── */}
-      <div className="px-10 pt-8 pb-6 border-b border-stone-100">
-        <div className="flex items-end justify-between">
+        <div className="absolute bottom-0 left-0 right-0 px-8 pb-5 flex items-end justify-between">
           <div>
-            <h1 className="font-serif text-3xl text-stone-900 mb-1">{gallery.title}</h1>
-            <p className="text-stone-400 font-sans text-sm">{gallery.clientName}</p>
+            <div className="flex items-center gap-2.5 mb-1">
+              <h1 className="font-serif text-2xl text-white leading-tight">{gallery.title}</h1>
+              <Badge variant={gallery.status as GalleryStatus} />
+            </div>
+            <p className="text-sm font-sans text-white/60">{gallery.clientName}</p>
           </div>
-          <div className="flex items-center gap-8 text-right">
+
+          <div className="flex items-end gap-6 text-right">
             <div>
-              <p className="text-2xl font-serif text-stone-900">{gallery.photoCount ?? totalPhotos}</p>
-              <p className="text-xs font-sans text-stone-400 uppercase tracking-widest">Photos</p>
+              <p className="text-xl font-serif text-white">{gallery.photoCount ?? totalPhotos}</p>
+              <p className="text-[10px] font-sans text-white/50 uppercase tracking-widest">Photos</p>
             </div>
             <div>
-              <p className="text-2xl font-serif text-stone-900">{sel?.photoCount ?? 0}</p>
-              <p className="text-xs font-sans text-stone-400 uppercase tracking-widest">Selected</p>
+              <p className="text-xl font-serif text-white">{sel?.photoCount ?? 0}</p>
+              <p className="text-[10px] font-sans text-white/50 uppercase tracking-widest">Selected</p>
             </div>
             <div>
-              <p className="text-2xl font-serif text-stone-900">{clients.length}</p>
-              <p className="text-xs font-sans text-stone-400 uppercase tracking-widest">Clients</p>
+              <p className="text-xl font-serif text-white">{clientCount}</p>
+              <p className="text-[10px] font-sans text-white/50 uppercase tracking-widest">Clients</p>
             </div>
           </div>
         </div>
@@ -105,7 +79,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
 
       {/* ── Selection notice ──────────────────────────────────────────────── */}
       {isSubmitted && sel && (
-        <div className="px-10 pt-5">
+        <div className="px-8 pt-5">
           <div className="flex items-center justify-between px-5 py-3.5 border border-stone-200 bg-stone-50/60">
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-sans text-stone-400 uppercase tracking-widest shrink-0">
@@ -114,9 +88,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
               <span className="text-sm font-sans text-stone-700">
                 {sel.photoCount} photo{sel.photoCount !== 1 ? 's' : ''}
               </span>
-              <span
-                className="px-2 py-0.5 text-[10px] font-sans font-medium text-stone-600 bg-stone-100"
-              >
+              <span className="px-2 py-0.5 text-[10px] font-sans font-medium text-stone-600 bg-stone-100">
                 {WORKFLOW_LABEL[sel.workflowState as string] ?? sel.workflowState}
               </span>
               {sel.submittedAt && (
@@ -126,7 +98,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
               )}
             </div>
             <Link
-              href={`/dashboard/gallery/${id}/selections`}
+              href={`/dashboard/gallery/${id}/clients`}
               className="text-xs font-sans text-stone-500 hover:text-stone-900 transition-colors shrink-0"
             >
               Manage selection →
@@ -136,7 +108,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
       )}
 
       {/* ── Photos ───────────────────────────────────────────────────────── */}
-      <div className="px-10 py-8">
+      <div className="px-8 py-7">
         {totalPhotos === 0 && allSections.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <p className="font-serif text-xl text-stone-400 mb-2">No photos yet</p>
@@ -159,74 +131,6 @@ export default async function GalleryManagementPage({ params }: { params: Promis
             initialWatermarkPresets={watermarkPresets}
           />
         )}
-      </div>
-
-      {/* ── Clients ───────────────────────────────────────────────────────── */}
-      {clients.length > 0 && (
-        <div className="px-10 pb-6 border-t border-stone-100 pt-6">
-          <h2 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-4">Clients</h2>
-          <div>
-            {clients.map((client) => (
-              <div
-                key={client.id}
-                className="flex items-center justify-between py-3 border-b border-stone-100 last:border-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 bg-stone-100 flex items-center justify-center text-xs font-sans text-stone-500 font-medium shrink-0">
-                    {client.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-sans text-stone-800">{client.name}</p>
-                    <p className="text-xs font-sans text-stone-400">{client.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6 text-right">
-                  <div>
-                    <p className="text-sm font-sans text-stone-700">{client.photoCount}</p>
-                    <p className="text-xs font-sans text-stone-400">selected</p>
-                  </div>
-                  {client.favoritesCount > 0 && (
-                    <div>
-                      <p className="text-sm font-sans text-stone-700">{client.favoritesCount}</p>
-                      <p className="text-xs font-sans text-stone-400">favourites</p>
-                    </div>
-                  )}
-                  {client.commentsCount > 0 && (
-                    <div>
-                      <p className="text-sm font-sans text-stone-700">{client.commentsCount}</p>
-                      <p className="text-xs font-sans text-stone-400">comments</p>
-                    </div>
-                  )}
-                  <div>
-                    {client.submittedAt ? (
-                      <>
-                        <p className="text-xs font-sans" style={{ color: '#C9A96E' }}>Submitted</p>
-                        <p className="text-xs font-sans text-stone-400">
-                          {new Date(client.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      </>
-                    ) : client.photoCount > 0 ? (
-                      <p className="text-xs font-sans text-stone-400">Selecting</p>
-                    ) : (
-                      <p className="text-xs font-sans text-stone-400">Browsing</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Activity link ─────────────────────────────────────────────────── */}
-      <div className="px-10 py-5 border-t border-stone-100 flex items-center justify-between">
-        <span className="text-xs font-sans text-stone-400">Gallery activity</span>
-        <Link
-          href={`/dashboard/gallery/${id}/activity`}
-          className="text-xs font-sans text-stone-500 hover:text-stone-900 transition-colors"
-        >
-          View activity →
-        </Link>
       </div>
 
     </div>

@@ -1,26 +1,83 @@
 'use client'
 
-import { Heart } from 'lucide-react'
+import { useState } from 'react'
+import { Heart, MessageCircle } from 'lucide-react'
 import type { Photo } from '@/lib/types'
 
 interface PhotoCardProps {
   photo: Photo
   index: number
   favorited: boolean
-  hasComment: boolean
+  comment?: { id: string; body: string }
+  allowComments?: boolean
   onOpen: (index: number) => void
   onFavoriteToggle?: (id: string) => void
+  onAddComment?: (photoId: string, body: string) => Promise<void>
+  onUpdateComment?: (commentId: string, body: string, photoId: string) => Promise<void>
+  onDeleteComment?: (commentId: string, photoId: string) => Promise<void>
   /** Override aspect ratio, e.g. "16/7" or "1/1". Uses natural photo ratio when omitted. */
   aspectRatio?: string
 }
 
-export function PhotoCard({ photo, index, favorited, hasComment, onOpen, onFavoriteToggle, aspectRatio: aspectRatioProp }: PhotoCardProps) {
+export function PhotoCard({
+  photo,
+  index,
+  favorited,
+  comment,
+  allowComments,
+  onOpen,
+  onFavoriteToggle,
+  onAddComment,
+  onUpdateComment,
+  onDeleteComment,
+  aspectRatio: aspectRatioProp,
+}: PhotoCardProps) {
+  const [commentEditing, setCommentEditing] = useState(false)
+  const [commentDraft,   setCommentDraft]   = useState('')
+  const [saving,         setSaving]         = useState(false)
+
   const naturalRatio = photo.height / photo.width
   const paddingBottom = (() => {
     if (!aspectRatioProp) return `${Math.min(Math.max(naturalRatio * 100, 66), 150)}%`
     const [h, w] = aspectRatioProp.split('/').map(Number)
     return `${(h / w) * 100}%`
   })()
+
+  function openCommentEditor() {
+    setCommentDraft(comment?.body ?? '')
+    setCommentEditing(true)
+  }
+
+  async function handleSave() {
+    if (saving) return
+    const body = commentDraft.trim()
+    setSaving(true)
+    try {
+      if (!body && comment) {
+        await onDeleteComment?.(comment.id, photo.id)
+      } else if (body && !comment) {
+        await onAddComment?.(photo.id, body)
+      } else if (body && comment && body !== comment.body) {
+        await onUpdateComment?.(comment.id, body, photo.id)
+      }
+    } finally {
+      setSaving(false)
+      setCommentEditing(false)
+    }
+  }
+
+  async function handleRemove() {
+    if (!comment || saving) return
+    setSaving(true)
+    try {
+      await onDeleteComment?.(comment.id, photo.id)
+    } finally {
+      setSaving(false)
+      setCommentEditing(false)
+    }
+  }
+
+  const showBottomBar = !!(onFavoriteToggle || allowComments)
 
   return (
     <div
@@ -34,11 +91,11 @@ export function PhotoCard({ photo, index, favorited, hasComment, onOpen, onFavor
         WebkitUserSelect: 'none',
       }}
     >
-      {/* Photo — tap always opens modal */}
+      {/* Photo — tap opens modal (unless comment editor is active) */}
       <div
         className="relative w-full cursor-zoom-in"
         style={{ paddingBottom }}
-        onClick={() => onOpen(index)}
+        onClick={() => { if (!commentEditing) onOpen(index) }}
         onContextMenu={(e) => e.preventDefault()}
       >
         <div
@@ -76,38 +133,112 @@ export function PhotoCard({ photo, index, favorited, hasComment, onOpen, onFavor
         />
       </div>
 
-      {/* Bottom bar: heart + comment dot */}
-      {onFavoriteToggle && (
-        <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center justify-between pointer-events-none">
-          <button
-            className={`
-              pointer-events-auto w-6 h-6 flex items-center justify-center
-              transition-all duration-200
-              ${favorited
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-60'
-              }
-            `}
-            onClick={(e) => { e.stopPropagation(); onFavoriteToggle(photo.id) }}
-            aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
-          >
-            <Heart
-              size={13}
-              strokeWidth={1.5}
-              style={{
-                fill:       favorited ? '#C9A96E' : 'transparent',
-                color:      favorited ? '#C9A96E' : 'rgba(255,255,255,0.55)',
-                transition: 'fill 300ms ease, color 300ms ease',
-              }}
-            />
-          </button>
+      {/* Inline comment editor overlay */}
+      {commentEditing && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col p-3"
+          style={{ backgroundColor: 'rgba(10,8,6,0.78)', backdropFilter: 'blur(2px)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <textarea
+            value={commentDraft}
+            onChange={(e) => setCommentDraft(e.target.value)}
+            placeholder="Add a note…"
+            autoFocus
+            rows={3}
+            className="flex-1 bg-transparent text-white text-xs font-sans resize-none focus:outline-none placeholder:text-white/30 leading-relaxed"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setCommentEditing(false)
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave()
+            }}
+          />
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10">
+            {comment ? (
+              <button
+                onClick={handleRemove}
+                disabled={saving}
+                className="text-[10px] font-sans text-red-400/60 hover:text-red-400 transition-colors disabled:opacity-40"
+              >
+                Remove
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={() => setCommentEditing(false)}
+                className="text-[10px] font-sans text-white/40 hover:text-white/70 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="text-[10px] font-sans transition-colors disabled:opacity-40"
+                style={{ color: '#C9A96E' }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-          {/* Comment dot — visible when photo has a note */}
-          {hasComment && (
-            <div
-              className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: 'rgba(201,169,110,0.65)' }}
-            />
+      {/* Bottom bar: heart + comment button */}
+      {showBottomBar && (
+        <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center justify-between pointer-events-none">
+          {/* Heart */}
+          {onFavoriteToggle ? (
+            <button
+              className={`
+                pointer-events-auto w-6 h-6 flex items-center justify-center
+                transition-all duration-200
+                ${favorited
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-60'
+                }
+              `}
+              onClick={(e) => { e.stopPropagation(); onFavoriteToggle(photo.id) }}
+              aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
+            >
+              <Heart
+                size={13}
+                strokeWidth={1.5}
+                style={{
+                  fill:       favorited ? '#C9A96E' : 'transparent',
+                  color:      favorited ? '#C9A96E' : 'rgba(255,255,255,0.55)',
+                  transition: 'fill 300ms ease, color 300ms ease',
+                }}
+              />
+            </button>
+          ) : (
+            <span />
+          )}
+
+          {/* Comment button — only when allowComments is enabled */}
+          {allowComments && (
+            <button
+              className={`
+                pointer-events-auto w-6 h-6 flex items-center justify-center
+                transition-all duration-200
+                ${comment
+                  ? 'opacity-100'
+                  : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-50'
+                }
+              `}
+              onClick={(e) => { e.stopPropagation(); openCommentEditor() }}
+              aria-label={comment ? 'Edit note' : 'Add note'}
+            >
+              <MessageCircle
+                size={12}
+                strokeWidth={1.5}
+                style={{
+                  fill:       comment ? 'rgba(201,169,110,0.25)' : 'transparent',
+                  color:      comment ? '#C9A96E' : 'rgba(255,255,255,0.45)',
+                  transition: 'fill 300ms ease, color 300ms ease',
+                }}
+              />
+            </button>
           )}
         </div>
       )}

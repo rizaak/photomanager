@@ -5,14 +5,14 @@ export const GallerySectionRepository = {
     return prisma.gallerySection.findMany({
       where: { galleryId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, title: true, sortOrder: true },
+      select: { id: true, title: true, sortOrder: true, visibleToClient: true },
     })
   },
 
   async findById(id: string) {
     return prisma.gallerySection.findUnique({
       where: { id },
-      select: { id: true, galleryId: true, title: true, sortOrder: true },
+      select: { id: true, galleryId: true, title: true, sortOrder: true, visibleToClient: true },
     })
   },
 
@@ -20,18 +20,18 @@ export const GallerySectionRepository = {
     return prisma.gallerySection.count({ where: { galleryId } })
   },
 
-  async create(galleryId: string, title: string, sortOrder: number) {
+  async create(galleryId: string, title: string, sortOrder: number, visibleToClient?: boolean) {
     return prisma.gallerySection.create({
-      data: { galleryId, title, sortOrder },
-      select: { id: true, title: true, sortOrder: true },
+      data: { galleryId, title, sortOrder, ...(visibleToClient !== undefined && { visibleToClient }) },
+      select: { id: true, title: true, sortOrder: true, visibleToClient: true },
     })
   },
 
-  async update(id: string, data: { title?: string; sortOrder?: number }) {
+  async update(id: string, data: { title?: string; sortOrder?: number; visibleToClient?: boolean }) {
     return prisma.gallerySection.update({
       where: { id },
       data,
-      select: { id: true, title: true, sortOrder: true },
+      select: { id: true, title: true, sortOrder: true, visibleToClient: true },
     })
   },
 

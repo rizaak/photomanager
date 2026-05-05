@@ -194,13 +194,14 @@ model Gallery {
 }
 
 model GallerySection {
-  id        String   @id @default(uuid())
-  galleryId String
-  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
-  title     String
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
-  photos    Photo[]
+  id              String   @id @default(uuid())
+  galleryId       String
+  gallery         Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  title           String
+  sortOrder       Int      @default(0)
+  visibleToClient Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  photos          Photo[]
 
   @@index([galleryId])
 }

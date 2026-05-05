@@ -34,9 +34,9 @@ async function signPhoto(photo: RawPhoto) {
 
 export const GalleryPhotosService = {
   // ── Full gallery load (used by client gallery view + cover photo selector) ──
-  async getForGallery(galleryId: string) {
+  async getForGallery(galleryId: string, opts: { publicOnly?: boolean } = {}) {
     const [result, nonReady] = await Promise.all([
-      PhotoRepository.findGalleryWithReadyPhotos(galleryId),
+      PhotoRepository.findGalleryWithReadyPhotos(galleryId, opts),
       PhotoRepository.findNonReadyByGallery(galleryId),
     ])
     if (!result) return null

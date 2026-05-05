@@ -19,7 +19,6 @@ const THEMES: Record<ColorTheme, { bg: string; text: string; subtext: string; ac
 
 type FinalsPhase = 'idle' | 'fetching' | 'done' | 'failed'
 type PagePhase   = 'resolving' | 'password' | 'register' | 'loading' | 'ready' | 'error' | 'expired'
-type FavFilter   = 'all' | 'favorites'
 
 const HIDE_DELAY = 3800
 
@@ -43,7 +42,6 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
   const [phase,              setPhase]              = useState<PagePhase>('resolving')
   const [galleryId,          setGalleryId]          = useState<string | null>(null)
   const [galleryTitle,       setGalleryTitle]       = useState('')
-  const [allowDownload,      setAllowDownload]      = useState(false)
   const [allowFinalDownload, setAllowFinalDownload] = useState(false)
   const [allowFavorites,     setAllowFavorites]     = useState(false)
   const [allowComments,      setAllowComments]      = useState(false)
@@ -64,6 +62,9 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
   const [submittingPass, setSubmittingPass] = useState(false)
   const acceptedPassword = useRef<string | undefined>(undefined)
 
+  // ── Client identity modal (lazy registration) ──────────────────────────────
+  const [identityModal, setIdentityModal] = useState<{ pendingAction: (() => void) | null } | null>(null)
+
   // ── Registration gate ──────────────────────────────────────────────────────
   const [nameInput,     setNameInput]     = useState('')
   const [emailInput,    setEmailInput]    = useState('')
@@ -75,7 +76,8 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
   const [photos,        setPhotos]        = useState<Photo[]>([])
   const [favoritedIds,  setFavoritedIds]  = useState<Set<string>>(new Set())
   const [photoComments, setPhotoComments] = useState<Map<string, { id: string; body: string }>>(new Map())
-  const [favFilter,     setFavFilter]     = useState<FavFilter>('all')
+  // activeTab: 'all' | 'favorites' | <sectionId>
+  const [activeTab,     setActiveTab]     = useState('all')
   const [uiVisible,     setUiVisible]     = useState(true)
   const [finalsPhase,   setFinalsPhase]   = useState<FinalsPhase>('idle')
 
@@ -103,7 +105,6 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
       }
       setGalleryId(data.id)
       setGalleryTitle(data.title)
-      setAllowDownload(data.allowDownload)
       setAllowFinalDownload(!!data.allowFinalDownload)
       setAllowFavorites(!!data.allowFavorites)
       setAllowComments(!!data.allowComments)
@@ -201,6 +202,7 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
         const sections = (photosData.sections ?? []).filter((s: any) => s.photos.length > 0)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setPhotoSections(sections.map((s: any) => ({ id: s.id, title: s.title, photos: s.photos.map(hydrate) })))
+        if (sections.length > 0) setActiveTab(sections[0].id)
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const allPhotos = [...sections.flatMap((s: any) => s.photos), ...(photosData.unsectioned ?? photosData.photos ?? [])]
@@ -230,6 +232,13 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
     }
   }, [revealUi])
 
+  // Reset favorites tab when it becomes empty — fall back to first section or 'all'
+  useEffect(() => {
+    if (activeTab === 'favorites' && favoritedIds.size === 0) {
+      setActiveTab(photoSections[0]?.id ?? 'all')
+    }
+  }, [favoritedIds.size, activeTab, photoSections])
+
   // ── Client helpers ─────────────────────────────────────────────────────────
   function clientHeaders(): Record<string, string> {
     const ct = clientToken ?? localStorage.getItem(storageKey(token)) ?? undefined
@@ -238,7 +247,12 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
 
   // ── Favorites ──────────────────────────────────────────────────────────────
   async function handleFavoriteToggle(photoId: string) {
-    if (!galleryId) return
+    if (!galleryId || isPreview) return
+    const ct = clientToken ?? localStorage.getItem(storageKey(token)) ?? undefined
+    if (!ct) {
+      setIdentityModal({ pendingAction: () => handleFavoriteToggle(photoId) })
+      return
+    }
     const wasFavorited = favoritedIds.has(photoId)
 
     // Optimistic update
@@ -273,7 +287,12 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
 
   // ── Comments ───────────────────────────────────────────────────────────────
   async function handleAddComment(photoId: string, body: string) {
-    if (!galleryId) return
+    if (!galleryId || isPreview) return
+    const ct = clientToken ?? localStorage.getItem(storageKey(token)) ?? undefined
+    if (!ct) {
+      setIdentityModal({ pendingAction: () => handleAddComment(photoId, body) })
+      return
+    }
     const res = await fetch(`/api/galleries/${galleryId}/comments`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...clientHeaders() },
@@ -311,6 +330,40 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
         return next
       })
     }
+  }
+
+  // ── Client identity ────────────────────────────────────────────────────────
+
+  async function handleClientIdentified(newToken: string, pendingAction: (() => void) | null) {
+    localStorage.setItem(storageKey(token), newToken)
+    setClientToken(newToken)
+    setIdentityModal(null)
+    // Fetch favorites/comments for this client
+    if (galleryId) {
+      try {
+        const res = await fetch(`/api/galleries/${galleryId}/favorites`, {
+          headers: { 'x-client-token': newToken },
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setFavoritedIds(new Set(data.photoIds as string[]))
+          const commMap = new Map<string, { id: string; body: string }>()
+          for (const c of (data.comments ?? []) as { id: string; photoId: string; body: string }[]) {
+            commMap.set(c.photoId, { id: c.id, body: c.body })
+          }
+          setPhotoComments(commMap)
+        }
+      } catch { /* non-critical */ }
+    }
+    // Resume the original action (uses localStorage so stale closure is fine)
+    pendingAction?.()
+  }
+
+  function handleClientLogout() {
+    localStorage.removeItem(storageKey(token))
+    setClientToken(undefined)
+    setFavoritedIds(new Set())
+    setPhotoComments(new Map())
   }
 
   // ── Finals download ────────────────────────────────────────────────────────
@@ -463,14 +516,12 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
   }
 
   // ── Gallery ────────────────────────────────────────────────────────────────
-  const theme        = THEMES[colorTheme]
-  const favCount     = favoritedIds.size
-  const showFavBadge = allowFavorites && favCount > 0
+  const theme    = THEMES[colorTheme]
+  const favCount = favoritedIds.size
 
-  // Find cover photo watermarked URL from the loaded photo list
-  const coverPhotoUrl = coverPhotoId
-    ? photos.find((p) => p.id === coverPhotoId)?.watermarkedUrl ?? null
-    : null
+  // Resolve cover: use configured cover photo if found, otherwise first photo
+  const coverPhoto    = coverPhotoId ? photos.find((p) => p.id === coverPhotoId) : null
+  const coverPhotoUrl = (coverPhoto ?? photos[0])?.watermarkedUrl ?? null
 
   // ── Typography classes ─────────────────────────────────────────────────────
   const titleClass = typographyStyle === 'modern'
@@ -479,28 +530,34 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
       ? 'font-sans font-medium tracking-[0.15em] uppercase text-sm'
       : 'font-serif'
 
-  // ── Filter photos ──────────────────────────────────────────────────────────
-  const filterPhotos = (list: Photo[]) =>
-    favFilter === 'favorites' ? list.filter((p) => favoritedIds.has(p.id)) : list
+  // ── Tab definitions ────────────────────────────────────────────────────────
+  // Section tabs only — no "All" tab. Favorites is a virtual tab appended when non-empty.
+  const tabs: { id: string; label: string; isHeart?: boolean }[] = [
+    ...photoSections.map((s) => ({ id: s.id, label: s.title })),
+    ...(allowFavorites && favCount > 0 ? [{ id: 'favorites', label: String(favCount), isHeart: true }] : []),
+  ]
+  // Hide tabs when there is only one thing to show (single section, no favorites tab yet)
+  const showTabs = tabs.length > 1
 
-  const filteredSections = photoSections
-    .map((s) => ({ ...s, photos: filterPhotos(s.photos) }))
-    .filter((s) => s.photos.length > 0)
+  // ── Resolve photos for current tab ────────────────────────────────────────
+  const allFlatPhotos = photos  // used as fallback when no sections exist
 
-  const unsectioned = photos.filter(
-    (p) => !photoSections.some((s) => s.photos.find((sp) => sp.id === p.id))
-  )
-  const filteredUnsectioned = filterPhotos(unsectioned)
+  const tabPhotos: Photo[] = (() => {
+    if (activeTab === 'favorites') return allFlatPhotos.filter((p) => favoritedIds.has(p.id))
+    const section = photoSections.find((s) => s.id === activeTab)
+    if (section) return section.photos
+    return allFlatPhotos   // no-section fallback
+  })()
 
   const gridProps = {
     layout: galleryLayout,
     favoritedIds,
     photoComments,
     allowComments,
-    onFavoriteToggle: allowFavorites ? handleFavoriteToggle : undefined,
-    onAddComment:     allowComments  ? handleAddComment     : undefined,
-    onUpdateComment:  allowComments  ? handleUpdateComment  : undefined,
-    onDeleteComment:  allowComments  ? handleDeleteComment  : undefined,
+    onFavoriteToggle: allowFavorites ? handleFavoriteToggle                                                                  : undefined,
+    onAddComment:     allowComments  ? (isPreview ? async (_: string, __: string) => {} : handleAddComment)                : undefined,
+    onUpdateComment:  allowComments  ? (isPreview ? async (_: string, __: string, ___: string) => {} : handleUpdateComment) : undefined,
+    onDeleteComment:  allowComments  ? (isPreview ? async (_: string, __: string) => {} : handleDeleteComment)             : undefined,
   }
 
   return (
@@ -509,6 +566,26 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
       style={{ backgroundColor: theme.bg, color: theme.text, userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
       onContextMenu={(e) => e.preventDefault()}
     >
+
+      {/* ── Preview mode banner ────────────────────────────────────────────────── */}
+      {isPreview && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-4 px-4 py-2 bg-stone-950/95 border-b border-stone-900 backdrop-blur-sm" style={{ pointerEvents: 'auto' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="shrink-0 text-[10px] font-sans uppercase tracking-widest" style={{ color: '#C9A96E' }}>
+              Preview
+            </span>
+            <span className="text-[11px] font-sans text-stone-500 truncate">
+              This is how clients see your gallery · Favorites and comments are disabled
+            </span>
+          </div>
+          <button
+            onClick={() => window.close()}
+            className="shrink-0 text-[11px] font-sans text-stone-600 hover:text-stone-400 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      )}
 
       <header
         className="fixed top-0 left-0 right-0 z-30 px-6 pt-5 pb-14 pointer-events-none"
@@ -519,50 +596,27 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
             <h1 className={`text-sm leading-snug ${titleClass}`} style={{ color: theme.subtext }}>{galleryTitle}</h1>
           </div>
 
-          <div className="flex items-center gap-3 pointer-events-auto">
-            {/* Favorite count + filter toggle */}
-            {showFavBadge && (
-              <button
-                onClick={() => setFavFilter((f) => f === 'all' ? 'favorites' : 'all')}
-                className="flex items-center gap-1.5 transition-opacity duration-200"
-                aria-label={favFilter === 'favorites' ? 'Show all photos' : 'Show favourites only'}
-                style={{ opacity: uiVisible ? 1 : 0, transition: 'opacity 600ms ease' }}
-              >
-                <Heart
-                  size={12}
-                  strokeWidth={0}
-                  style={{
-                    fill: favFilter === 'favorites' ? '#C9A96E' : 'rgba(201,169,110,0.5)',
-                    transition: 'fill 300ms ease',
-                  }}
-                />
-                <span
-                  className="text-xs font-sans tabular-nums"
-                  style={{ color: favFilter === 'favorites' ? '#C9A96E' : 'rgba(201,169,110,0.5)' }}
-                >
-                  {favCount}
-                </span>
-              </button>
-            )}
-
-            {/* Finals download */}
-            {allowFinalDownload && (
+          {/* Finals download */}
+          {allowFinalDownload && (
+            <div className="pointer-events-auto" style={{ opacity: uiVisible ? 1 : 0, transition: 'opacity 600ms ease' }}>
               <button
                 onClick={finalsPhase === 'idle' || finalsPhase === 'failed' ? handleDownloadFinals : undefined}
                 disabled={finalsPhase === 'fetching' || finalsPhase === 'done'}
                 className="pt-px text-stone-500 hover:text-stone-300 disabled:pointer-events-none transition-colors duration-200"
                 aria-label="Download final photos"
-                style={{ opacity: uiVisible ? 1 : 0, transition: 'opacity 600ms ease' }}
               >
                 {finalsPhase === 'idle'     && <ArrowDownToLine size={14} strokeWidth={1.5} style={{ color: '#C9A96E' }} />}
                 {finalsPhase === 'fetching' && <Loader2         size={14} strokeWidth={1.5} className="animate-spin" />}
                 {finalsPhase === 'done'     && <Check           size={14} strokeWidth={1.5} style={{ color: '#C9A96E' }} />}
                 {finalsPhase === 'failed'   && <RotateCcw       size={14} strokeWidth={1.5} style={{ color: '#ef4444' }} />}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </header>
+
+      {/* Push content below preview banner */}
+      {isPreview && <div className="h-[38px]" />}
 
       {/* ── Cover section ─────────────────────────────────────────────────────── */}
       <GalleryCover
@@ -575,48 +629,203 @@ export default function ClientGalleryPage({ params }: { params: Promise<{ token:
         titleClass={titleClass}
       />
 
+      {/* ── Section / filter tabs ──────────────────────────────────────────────── */}
+      {showTabs && (
+        <div
+          className="overflow-x-auto px-3 pb-4 pt-3"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div className="flex gap-2 min-w-max">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-sans transition-all duration-200"
+                  style={{
+                    backgroundColor: isActive
+                      ? 'rgba(201,169,110,0.15)'
+                      : colorTheme === 'light' ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
+                    color: isActive ? '#C9A96E' : theme.subtext,
+                    border: isActive ? '1px solid rgba(201,169,110,0.3)' : '1px solid transparent',
+                  }}
+                  aria-pressed={isActive}
+                >
+                  {tab.isHeart && (
+                    <Heart
+                      size={10}
+                      strokeWidth={0}
+                      style={{ fill: isActive ? '#C9A96E' : 'rgba(201,169,110,0.6)', flexShrink: 0 }}
+                    />
+                  )}
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Photo grid ────────────────────────────────────────────────────────── */}
-      <div className={coverStyle === 'minimal' ? 'p-1' : 'p-1 pt-4'}>
-        {photoSections.length > 0 ? (
-          <>
-            {filteredSections.map((section) => (
-              <div key={section.id} className="mb-8">
-                <div className="px-2 pb-3">
-                  <p className="text-xs font-sans tracking-widest uppercase" style={{ color: 'rgba(168,163,158,0.55)' }}>
-                    {section.title}
-                  </p>
-                </div>
-                <GalleryGrid photos={section.photos} {...gridProps} />
-              </div>
-            ))}
-            {filteredUnsectioned.length > 0 && (
-              <div className="mt-4">
-                <GalleryGrid photos={filteredUnsectioned} {...gridProps} />
-              </div>
-            )}
-            {/* Empty state for favorites filter */}
-            {favFilter === 'favorites' && filteredSections.length === 0 && filteredUnsectioned.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-24 gap-2">
-                <Heart size={20} strokeWidth={1.25} style={{ color: 'rgba(201,169,110,0.3)' }} />
-                <p className="font-sans text-xs text-stone-700">No favourites yet</p>
-              </div>
-            )}
-          </>
+      <div className="p-1">
+        {tabPhotos.length > 0 ? (
+          <GalleryGrid photos={tabPhotos} {...gridProps} />
         ) : (
-          <>
-            <GalleryGrid photos={filterPhotos(photos)} {...gridProps} />
-            {/* Empty state for favorites filter */}
-            {favFilter === 'favorites' && filterPhotos(photos).length === 0 && (
-              <div className="flex flex-col items-center justify-center py-24 gap-2">
-                <Heart size={20} strokeWidth={1.25} style={{ color: 'rgba(201,169,110,0.3)' }} />
-                <p className="font-sans text-xs text-stone-700">No favourites yet</p>
-              </div>
-            )}
-          </>
+          <div className="flex flex-col items-center justify-center py-24 gap-2">
+            <Heart size={20} strokeWidth={1.25} style={{ color: 'rgba(201,169,110,0.3)' }} />
+            <p className="font-sans text-xs" style={{ color: theme.subtext, opacity: 0.5 }}>
+              {activeTab === 'favorites' ? 'No favourites yet' : 'No photos in this section'}
+            </p>
+          </div>
         )}
       </div>
 
       <div className="h-16" />
+
+      {/* ── Switch client ──────────────────────────────────────────────────────── */}
+      {clientToken && !isPreview && (
+        <div
+          className="fixed bottom-5 right-5 z-30 pointer-events-auto"
+          style={chromeFade}
+        >
+          <button
+            onClick={handleClientLogout}
+            className="text-[11px] font-sans transition-colors"
+            style={{ color: theme.subtext }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = theme.text)}
+            onMouseLeave={(e) => (e.currentTarget.style.color = theme.subtext)}
+          >
+            Switch client
+          </button>
+        </div>
+      )}
+
+      {/* ── Client identity modal ──────────────────────────────────────────────── */}
+      {identityModal && !isPreview && (
+        <ClientIdentityModal
+          token={token}
+          acceptedPassword={acceptedPassword.current}
+          theme={theme}
+          onClose={() => setIdentityModal(null)}
+          onSuccess={(newToken) => handleClientIdentified(newToken, identityModal.pendingAction)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── ClientIdentityModal ────────────────────────────────────────────────────────
+
+function ClientIdentityModal({
+  token,
+  acceptedPassword,
+  theme,
+  onClose,
+  onSuccess,
+}: {
+  token:           string
+  acceptedPassword: string | undefined
+  theme:           typeof THEMES[ColorTheme]
+  onClose:         () => void
+  onSuccess:       (clientToken: string) => void
+}) {
+  const [name,    setName]    = useState('')
+  const [email,   setEmail]   = useState('')
+  const [error,   setError]   = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !loading) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [loading, onClose])
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const n = name.trim(); const em = email.trim()
+    if (!n || !em || loading) return
+    setError(null)
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/galleries/by-token/${token}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name: n, email: em, ...(acceptedPassword ? { password: acceptedPassword } : {}) }),
+      })
+      const data = await res.json()
+      if (res.ok && data.clientToken) {
+        onSuccess(data.clientToken)
+      } else if (res.ok) {
+        // Gallery doesn't require client info — clientToken absent, use registration flag
+        setError('Could not register. Please try again.')
+      } else {
+        setError('Something went wrong. Please try again.')
+      }
+    } catch {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const inputCls = 'w-full bg-transparent border px-4 py-3 text-sm font-sans placeholder-stone-700 focus:outline-none transition-colors'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 sm:p-6">
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+        onClick={!loading ? onClose : undefined}
+      />
+      <div
+        className="relative w-full max-w-xs pb-2"
+        style={{ backgroundColor: theme.bg, border: `1px solid ${theme.border}` }}
+      >
+        <div className="px-6 pt-6 pb-5">
+          <p className="font-serif text-base mb-1" style={{ color: theme.text }}>
+            Tell us who you are
+          </p>
+          <p className="text-[11px] font-sans leading-relaxed mb-5" style={{ color: theme.subtext }}>
+            Your name and email let us save your favorites and comments.
+            If you&rsquo;ve visited before, use the same email to restore them.
+          </p>
+          <form onSubmit={handleSubmit} className="space-y-2.5">
+            <input
+              autoFocus
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => { setName(e.target.value); setError(null) }}
+              placeholder="Your name"
+              className={inputCls}
+              style={{ color: theme.text, borderColor: theme.border }}
+            />
+            <input
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(null) }}
+              placeholder="Email address"
+              className={inputCls}
+              style={{ color: theme.text, borderColor: theme.border }}
+            />
+            {error && (
+              <p className="text-xs font-sans text-red-400 pt-0.5">{error}</p>
+            )}
+            <button
+              type="submit"
+              disabled={!name.trim() || !email.trim() || loading}
+              className="w-full py-3 text-sm font-sans transition-colors disabled:opacity-40 mt-1"
+              style={{ backgroundColor: 'rgba(201,169,110,0.12)', color: '#C9A96E', border: '1px solid rgba(201,169,110,0.25)' }}
+            >
+              {loading ? 'Saving…' : 'Continue'}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

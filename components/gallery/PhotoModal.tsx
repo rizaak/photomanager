@@ -340,23 +340,25 @@ export function PhotoModal({
         }}
       >
         <div className="flex items-center justify-between">
-          {/* Heart — favorite toggle */}
-          <button
-            onClick={() => onFavoriteToggle?.(photo.id)}
-            className="transition-colors duration-200 text-stone-500 hover:text-stone-300"
-            aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
-          >
-            <Heart
-              size={18}
-              strokeWidth={favorited ? 0 : 1.25}
-              style={{
-                fill:       favorited ? '#C9A96E' : 'transparent',
-                color:      favorited ? '#C9A96E' : undefined,
-                transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
-                transform:  favorited ? 'scale(1.18)' : 'scale(1)',
-              }}
-            />
-          </button>
+          {/* Heart — favorite toggle, only when enabled */}
+          {onFavoriteToggle ? (
+            <button
+              onClick={() => onFavoriteToggle(photo.id)}
+              className="transition-colors duration-200 text-stone-500 hover:text-stone-300"
+              aria-label={favorited ? 'Remove from favourites' : 'Add to favourites'}
+            >
+              <Heart
+                size={18}
+                strokeWidth={favorited ? 0 : 1.25}
+                style={{
+                  fill:       favorited ? '#C9A96E' : 'transparent',
+                  color:      favorited ? '#C9A96E' : undefined,
+                  transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
+                  transform:  favorited ? 'scale(1.18)' : 'scale(1)',
+                }}
+              />
+            </button>
+          ) : <span />}
 
           {/* Download — for photographer preview context */}
           {allowDownload && (
@@ -378,8 +380,8 @@ export function PhotoModal({
           )}
         </div>
 
-        {/* Comment section — only when favorited and allowComments */}
-        {allowComments && favorited && (
+        {/* Comment section — shown when allowComments, regardless of favorite status */}
+        {allowComments && (
           <div className="mt-4">
             {editingComment ? (
               <div className="flex items-center gap-2">

@@ -22,19 +22,24 @@ export const GallerySectionService = {
     return GallerySectionRepository.findAll(galleryId)
   },
 
-  async createSection(galleryId: string, photographerId: string, title: string) {
+  async createSection(galleryId: string, photographerId: string, title: string, visibleToClient?: boolean) {
     await assertOwnership(galleryId, photographerId)
     const count = await GallerySectionRepository.countByGallery(galleryId)
-    return GallerySectionRepository.create(galleryId, title.trim(), count)
+    return GallerySectionRepository.create(galleryId, title.trim(), count, visibleToClient)
   },
 
-  async renameSection(sectionId: string, galleryId: string, photographerId: string, title: string) {
+  async updateSection(
+    sectionId: string,
+    galleryId: string,
+    photographerId: string,
+    data: { title?: string; visibleToClient?: boolean },
+  ) {
     const section = await GallerySectionRepository.findById(sectionId)
     if (!section || section.galleryId !== galleryId) {
       throw Object.assign(new Error('Section not found'), { status: 404 })
     }
     await assertOwnership(galleryId, photographerId)
-    return GallerySectionRepository.update(sectionId, { title: title.trim() })
+    return GallerySectionRepository.update(sectionId, data)
   },
 
   async deleteSection(sectionId: string, galleryId: string, photographerId: string) {

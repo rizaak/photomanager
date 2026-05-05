@@ -4,16 +4,19 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Plus, ChevronDown, ChevronLeft, ChevronRight, Check, Trash2, Loader2, AlertCircle,
   Search, X, CheckCircle2, MessageCircle, Pencil,
-  MoreHorizontal, Droplets, GripVertical, Heart,
+  MoreHorizontal, Droplets, GripVertical,
 } from 'lucide-react'
 import { PhotoContextMenu, type WatermarkPresetOption } from './PhotoContextMenu'
+import { DeleteSectionDialog } from './DeleteSectionDialog'
+import { SectionDialog, type SectionRecord } from './SectionDialog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GridSection {
-  id:        string
-  title:     string
-  sortOrder: number
+  id:              string
+  title:           string
+  sortOrder:       number
+  visibleToClient: boolean
 }
 
 export interface GridPhoto {
@@ -434,17 +437,14 @@ function DashboardPhotoModal({ photos, initialIndex, selectedIds, onClose, onTog
       >
         <button
           onClick={() => onToggleSelect(photo.id)}
-          className={`transition-colors duration-200 ${isSelected ? 'text-accent' : 'text-stone-500 hover:text-stone-300'}`}
+          className="transition-colors duration-200"
           aria-label={isSelected ? 'Deselect photo' : 'Select photo'}
+          style={{ color: isSelected ? '#C9A96E' : '#78716c' }}
         >
-          <Heart
+          <CheckCircle2
             size={18}
-            strokeWidth={isSelected ? 0 : 1.25}
-            style={{
-              fill:       isSelected ? '#C9A96E' : 'transparent',
-              transition: 'fill 450ms ease, transform 300ms cubic-bezier(0.34,1.56,0.64,1)',
-              transform:  isSelected ? 'scale(1.18)' : 'scale(1)',
-            }}
+            strokeWidth={1.25}
+            style={{ transition: 'color 250ms ease' }}
           />
         </button>
         <span className="text-[11px] font-sans text-stone-600 truncate max-w-xs select-none">{photo.filename}</span>
@@ -743,9 +743,7 @@ export function DashboardPhotoGrid({
   const [page,             setPage]             = useState(1)
   const [isLoading,        setIsLoading]        = useState(false)
   const [isLoadingMore,    setIsLoadingMore]    = useState(false)
-  const [addingSection,    setAddingSection]    = useState(false)
-  const [newTitle,         setNewTitle]         = useState('')
-  const [creating,         setCreating]         = useState(false)
+  const [sectionDialog,    setSectionDialog]    = useState<{ mode: 'new' } | { mode: 'edit'; section: GridSection } | null>(null)
   const [openDropdown,     setOpenDropdown]     = useState<string | null>(null)
   const [selectedIds,      setSelectedIds]      = useState<Set<string>>(new Set())
   const [contextMenu,      setContextMenu]      = useState<{ photo: GridPhoto; x: number; y: number } | null>(null)
@@ -769,7 +767,41 @@ export function DashboardPhotoGrid({
     preIds:    Set<string>
   } | null>(null)
 
+  // ── Collapse state ────────────────────────────────────────────────────────
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const stored = sessionStorage.getItem(`frame_collapsed_${galleryId}`)
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set()
+    } catch { return new Set() }
+  })
+
+  function saveCollapsed(next: Set<string>) {
+    try { sessionStorage.setItem(`frame_collapsed_${galleryId}`, JSON.stringify([...next])) } catch {}
+  }
+
+  function toggleSectionCollapse(sectionId: string) {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev)
+      next.has(sectionId) ? next.delete(sectionId) : next.add(sectionId)
+      saveCollapsed(next)
+      return next
+    })
+  }
+
+  function collapseAllSections() {
+    const next = new Set(sections.map((s) => s.id))
+    setCollapsedSections(next)
+    saveCollapsed(next)
+  }
+
+  function expandAllSections() {
+    setCollapsedSections(new Set())
+    saveCollapsed(new Set())
+  }
+
   // ── Reorder state ─────────────────────────────────────────────────────────
+  const [deletingSection,  setDeletingSection]  = useState<{ id: string; title: string } | null>(null)
   const [reorderMode,      setReorderMode]      = useState(false)
   const [loadingAll,       setLoadingAll]       = useState(false)
   const [dragPhotoId,      setDragPhotoId]      = useState<string | null>(null)
@@ -992,28 +1024,6 @@ export function DashboardPhotoGrid({
 
   // ── Section CRUD ──────────────────────────────────────────────────────────
 
-  async function handleCreate() {
-    if (!newTitle.trim() || creating) return
-    setCreating(true)
-    const res = await fetch(`/api/galleries/${galleryId}/sections`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body:   JSON.stringify({ title: newTitle.trim() }),
-    })
-    if (res.ok) {
-      const section: GridSection = await res.json()
-      setSections((prev) => [...prev, section])
-      setNewTitle(''); setAddingSection(false)
-    }
-    setCreating(false)
-  }
-
-  async function handleDeleteSection(sectionId: string) {
-    const res = await fetch(`/api/galleries/${galleryId}/sections/${sectionId}`, { method: 'DELETE' })
-    if (res.ok) {
-      setSections((prev) => prev.filter((s) => s.id !== sectionId))
-      setPhotos((prev) => prev.map((p) => p.sectionId === sectionId ? { ...p, sectionId: null } : p))
-    }
-  }
 
   async function handleAssign(photoId: string, sectionId: string | null) {
     setOpenDropdown(null)
@@ -1319,6 +1329,22 @@ export function DashboardPhotoGrid({
         </div>
 
         <div className="flex items-center gap-3">
+          {sections.length > 0 && !isFiltered && !reorderMode && (
+            <>
+              <button
+                onClick={expandAllSections}
+                className="text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
+              >
+                Expand all
+              </button>
+              <button
+                onClick={collapseAllSections}
+                className="text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
+              >
+                Collapse all
+              </button>
+            </>
+          )}
           {hasPhotos && !isFiltered && !reorderMode && (
             <button
               onClick={() => { if (reorderMode) exitReorderMode(); else enterReorderMode() }}
@@ -1337,10 +1363,10 @@ export function DashboardPhotoGrid({
               Done reordering
             </button>
           )}
-          {!addingSection && !reorderMode && (
-            <button onClick={() => setAddingSection(true)} className="flex items-center gap-1.5 text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors">
+          {!reorderMode && (
+            <button onClick={() => setSectionDialog({ mode: 'new' })} className="flex items-center gap-1.5 text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors">
               <Plus size={12} strokeWidth={1.5} />
-              Add section
+              New section
             </button>
           )}
         </div>
@@ -1356,25 +1382,6 @@ export function DashboardPhotoGrid({
         onChange={setFilters}
       />
 
-      {/* ── New section form ──────────────────────────────────────────────── */}
-      {addingSection && (
-        <div className="flex items-center gap-2 mb-8">
-          <input
-            autoFocus type="text" value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter')  handleCreate()
-              if (e.key === 'Escape') { setAddingSection(false); setNewTitle('') }
-            }}
-            placeholder="Section name (e.g. Ceremony, Reception)"
-            className="flex-1 border border-stone-200 px-3 py-2 text-sm font-sans text-stone-800 placeholder-stone-400 focus:outline-none focus:border-stone-400"
-          />
-          <button onClick={handleCreate} disabled={!newTitle.trim() || creating} className="px-4 py-2 text-xs font-sans bg-stone-900 text-white disabled:opacity-40 transition-opacity">
-            {creating ? 'Creating…' : 'Create'}
-          </button>
-          <button onClick={() => { setAddingSection(false); setNewTitle('') }} className="px-4 py-2 text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors">Cancel</button>
-        </div>
-      )}
 
       {/* ── Loading ───────────────────────────────────────────────────────── */}
       {isLoading && (
@@ -1392,19 +1399,59 @@ export function DashboardPhotoGrid({
               : <p className="text-sm font-sans text-stone-400 py-16 text-center italic">No photos match your filters</p>
           ) : (
             <>
-              {grouped.map((section) => (
-                <div key={section.id} className="mb-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-sans font-medium text-stone-700">{section.title}</h3>
-                    {!reorderMode && (
-                      <button onClick={() => handleDeleteSection(section.id)} className="flex items-center gap-1 text-xs font-sans text-stone-400 hover:text-red-500 transition-colors">
-                        <Trash2 size={12} strokeWidth={1.5} /> Delete
+              {grouped.map((section) => {
+                const isCollapsed = collapsedSections.has(section.id)
+                return (
+                  <div key={section.id} className="mb-10">
+                    <div className="flex items-center gap-2 mb-4">
+                      <button
+                        onClick={() => toggleSectionCollapse(section.id)}
+                        aria-expanded={!isCollapsed}
+                        aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
+                        className="shrink-0 text-stone-400 hover:text-stone-600 transition-colors"
+                      >
+                        {isCollapsed
+                          ? <ChevronRight size={14} strokeWidth={1.5} />
+                          : <ChevronDown  size={14} strokeWidth={1.5} />
+                        }
                       </button>
+                      <h3 className="text-sm font-sans font-medium text-stone-700">{section.title}</h3>
+                      {isCollapsed && section.photos.length > 0 && (
+                        <span className="text-[11px] font-sans text-stone-400 tabular-nums">
+                          {section.photos.length}
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-sans px-1.5 py-0.5 border leading-none ${
+                        section.visibleToClient
+                          ? 'text-emerald-600 border-emerald-200 bg-emerald-50'
+                          : 'text-stone-400 border-stone-200 bg-stone-50'
+                      }`}>
+                        {section.visibleToClient ? 'Visible' : 'Hidden'}
+                      </span>
+                      {!reorderMode && (
+                        <div className="ml-auto flex items-center gap-3">
+                          <button
+                            onClick={() => setSectionDialog({ mode: 'edit', section })}
+                            className="text-stone-300 hover:text-stone-600 transition-colors"
+                            aria-label="Edit section"
+                          >
+                            <Pencil size={12} strokeWidth={1.5} />
+                          </button>
+                          <button
+                            onClick={() => setDeletingSection({ id: section.id, title: section.title })}
+                            className="flex items-center gap-1 text-xs font-sans text-stone-400 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={12} strokeWidth={1.5} /> Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {!isCollapsed && (
+                      reorderMode ? renderReorderGrid(section.photos) : renderGrid(section.photos)
                     )}
                   </div>
-                  {reorderMode ? renderReorderGrid(section.photos) : renderGrid(section.photos)}
-                </div>
-              ))}
+                )
+              })}
 
               {unsectioned.length > 0 && (
                 <div className={sections.length > 0 ? 'mt-10' : ''}>
@@ -1477,6 +1524,33 @@ export function DashboardPhotoGrid({
             height:          selRect.height,
             backgroundColor: 'rgba(201,169,110,0.07)',
             border:          '1px solid rgba(201,169,110,0.40)',
+          }}
+        />
+      )}
+
+      {deletingSection && (
+        <DeleteSectionDialog
+          section={deletingSection}
+          galleryId={galleryId}
+          onClose={() => setDeletingSection(null)}
+          onDeleted={(id) => {
+            setSections((prev) => prev.filter((s) => s.id !== id))
+            setPhotos((prev) => prev.map((p) => p.sectionId === id ? { ...p, sectionId: null } : p))
+          }}
+        />
+      )}
+
+      {sectionDialog && (
+        <SectionDialog
+          galleryId={galleryId}
+          section={sectionDialog.mode === 'edit' ? sectionDialog.section : null}
+          onClose={() => setSectionDialog(null)}
+          onSaved={(saved: SectionRecord) => {
+            if (sectionDialog.mode === 'new') {
+              setSections((prev) => [...prev, saved])
+            } else {
+              setSections((prev) => prev.map((s) => s.id === saved.id ? saved : s))
+            }
           }}
         />
       )}

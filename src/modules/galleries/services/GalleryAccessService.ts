@@ -107,7 +107,24 @@ export const GalleryAccessService = {
       }
     }
 
-    ActivityService.log(gallery.id, 'GALLERY_OPENED')
+    // Voluntary registration: register client when name+email provided even when not required
+    if (!clientToken && opts.name && opts.email) {
+      const registered = await ClientService.register(gallery.id, opts.email, opts.name)
+      clientToken = registered.accessToken
+      if (registered.isNew) {
+        ActivityService.log(gallery.id, 'CLIENT_REGISTERED', { email: registered.email, name: registered.name })
+        QueueProvider.enqueueNotification('CLIENT_REGISTERED', {
+          galleryId:   gallery.id,
+          clientName:  registered.name,
+          clientEmail: registered.email,
+        }).catch((err) => console.error('[GalleryAccessService] enqueue CLIENT_REGISTERED:', err))
+      }
+    }
+
+    // Skip activity log in photographer preview mode
+    if (!isOwner) {
+      ActivityService.log(gallery.id, 'GALLERY_OPENED')
+    }
 
     return {
       gate: 'open',

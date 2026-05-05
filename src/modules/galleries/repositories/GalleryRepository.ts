@@ -112,7 +112,14 @@ export const GalleryRepository = {
         clientActivity:  true,
         downloadEnabled: true,
         shareToken:      true,
+        coverPhotoId:    true,
         _count:          { select: { photos: true } },
+        photos: {
+          where:   { status: 'READY' as const, thumbnailKey: { not: null as null } },
+          orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
+          take:    1,
+          select:  { id: true, thumbnailKey: true },
+        },
         selections: {
           // Prioritise the most recent submitted selection; fall back to latest draft
           where:   { submittedAt: { not: null } },

@@ -18,7 +18,9 @@
       "Bash(npx tsx:*)",
       "Bash(find /Users/isaaclopez/Documents/Isaac/PhotoManager/app/api/galleries/[id] -name \"photos*\" -o -name \"route.ts\")",
       "Bash(grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx eslint:*)",
+      "Bash(xargs cat *)"
     ]
   }
 }

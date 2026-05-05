@@ -55,7 +55,7 @@ export const PhotoRepository = {
     await prisma.photo.update({ where: { id }, data: { status } })
   },
 
-  async findGalleryWithReadyPhotos(galleryId: string) {
+  async findGalleryWithReadyPhotos(galleryId: string, opts: { publicOnly?: boolean } = {}) {
     const PHOTO_SELECT = {
       id: true,
       galleryId: true,
@@ -78,6 +78,7 @@ export const PhotoRepository = {
         id: true,
         title: true,
         sections: {
+          where: opts.publicOnly ? { visibleToClient: true } : undefined,
           orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
           select: {
             id: true,

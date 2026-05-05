@@ -34,6 +34,21 @@ export function GalleryGrid({
 }: GalleryGridProps) {
   const [modalIndex, setModalIndex] = useState<number | null>(null)
 
+  function cardProps(photo: Photo, i: number) {
+    return {
+      photo,
+      index: i,
+      favorited: favoritedIds.has(photo.id),
+      comment: photoComments?.get(photo.id),
+      allowComments,
+      onOpen: setModalIndex,
+      onFavoriteToggle,
+      onAddComment,
+      onUpdateComment,
+      onDeleteComment,
+    }
+  }
+
   return (
     <>
       {layout === 'masonry' && (
@@ -44,14 +59,7 @@ export function GalleryGrid({
               className="break-inside-avoid mb-2 lg:mb-2.5"
               style={{ animation: `photoReveal 800ms cubic-bezier(0.22,1,0.36,1) ${Math.min(i, 9) * 55}ms both` }}
             >
-              <PhotoCard
-                photo={photo}
-                index={i}
-                favorited={favoritedIds.has(photo.id)}
-                hasComment={photoComments?.has(photo.id) ?? false}
-                onOpen={setModalIndex}
-                onFavoriteToggle={onFavoriteToggle}
-              />
+              <PhotoCard {...cardProps(photo, i)} />
             </div>
           ))}
         </div>
@@ -66,13 +74,8 @@ export function GalleryGrid({
               style={{ animation: `photoReveal 800ms cubic-bezier(0.22,1,0.36,1) ${Math.min(i, 9) * 55}ms both` }}
             >
               <PhotoCard
-                photo={photo}
-                index={i}
-                favorited={favoritedIds.has(photo.id)}
-                hasComment={photoComments?.has(photo.id) ?? false}
+                {...cardProps(photo, i)}
                 aspectRatio={i % 5 === 0 ? '16/7' : '4/5'}
-                onOpen={setModalIndex}
-                onFavoriteToggle={onFavoriteToggle}
               />
             </div>
           ))}
@@ -86,15 +89,7 @@ export function GalleryGrid({
               key={photo.id}
               style={{ animation: `photoReveal 800ms cubic-bezier(0.22,1,0.36,1) ${Math.min(i, 9) * 55}ms both` }}
             >
-              <PhotoCard
-                photo={photo}
-                index={i}
-                favorited={favoritedIds.has(photo.id)}
-                hasComment={photoComments?.has(photo.id) ?? false}
-                aspectRatio="1/1"
-                onOpen={setModalIndex}
-                onFavoriteToggle={onFavoriteToggle}
-              />
+              <PhotoCard {...cardProps(photo, i)} aspectRatio="1/1" />
             </div>
           ))}
         </div>
@@ -118,4 +113,3 @@ export function GalleryGrid({
     </>
   )
 }
-

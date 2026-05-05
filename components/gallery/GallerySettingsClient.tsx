@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Check, Copy, Eye, EyeOff, Trash2, X } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -93,14 +93,7 @@ interface Preset {
   createdAt:         string
 }
 
-interface ActivityEvent {
-  id:        string
-  eventType: string
-  metadata:  Record<string, unknown> | null
-  createdAt: string
-}
-
-type Tab = 'presentation' | 'access' | 'downloads' | 'interaction' | 'protection' | 'activity' | 'presets'
+type Tab = 'presentation' | 'access' | 'downloads' | 'interaction' | 'protection' | 'presets'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -110,7 +103,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'downloads',    label: 'Downloads'     },
   { key: 'interaction',  label: 'Interaction'   },
   { key: 'protection',   label: 'Protection'    },
-  { key: 'activity',     label: 'Activity'      },
   { key: 'presets',      label: 'Presets'       },
 ]
 
@@ -121,18 +113,6 @@ const DOWNLOAD_TYPE_LABELS: Record<DownloadType, string> = {
   ORIGINALS:     'Original files',
   SELECTED_ONLY: 'Selected photos only',
   FULL_GALLERY:  'Full gallery',
-}
-
-const EVENT_LABELS: Record<string, string> = {
-  GALLERY_OPENED:      'Gallery opened',
-  CLIENT_REGISTERED:   'Client registered',
-  PHOTO_SELECTED:      'Photo selected',
-  PHOTO_DESELECTED:    'Photo deselected',
-  COMMENT_ADDED:       'Comment added',
-  SELECTION_SUBMITTED: 'Selection submitted',
-  FINAL_UPLOADED:      'Final uploaded',
-  FINALS_READY:        'Finals marked ready',
-  DOWNLOAD_REQUESTED:  'Download requested',
 }
 
 // ── Shared primitives ──────────────────────────────────────────────────────────
@@ -280,7 +260,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
   const [settings,         setSettings]         = useState(initialSettings)
   const [presets,          setPresets]          = useState(initialPresets)
   const [watermarkPresets, setWatermarkPresets] = useState(initialWatermarkPresets)
-  const [events,           setEvents]           = useState<ActivityEvent[]>([])
   const [saving,           setSaving]           = useState(false)
   const [saved,            setSaved]            = useState(false)
 
@@ -302,20 +281,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
     }
     setSaving(false)
   }
-
-  // ── Activity load ────────────────────────────────────────────────────────────
-
-  const loadActivity = useCallback(async () => {
-    const res = await fetch(`/api/galleries/${galleryId}/activity`)
-    if (res.ok) {
-      const data = await res.json()
-      setEvents(data.events ?? [])
-    }
-  }, [galleryId])
-
-  useEffect(() => {
-    if (tab === 'activity') loadActivity()
-  }, [tab, loadActivity])
 
   // ── Tab content ─────────────────────────────────────────────────────────────
 
@@ -545,7 +510,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
     return (
       <Section title="Client Interaction" subtitle="What clients can do inside the gallery.">
         <div className="mb-6 max-w-sm">
-          <Toggle value={settings.allowSelection}    onChange={(v) => setSettings((s) => ({ ...s, allowSelection:    v }))} label="Allow photo selection" />
           <Toggle value={settings.allowFavorites}    onChange={(v) => setSettings((s) => ({ ...s, allowFavorites:    v }))} label="Allow favorites" />
           <Toggle value={settings.allowComments}     onChange={(v) => setSettings((s) => ({ ...s, allowComments:     v }))} label="Allow comments" />
           <Toggle value={settings.requireClientInfo} onChange={(v) => setSettings((s) => ({ ...s, requireClientInfo: v }))} label="Require name and email before access" />
@@ -554,7 +518,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
           saving={saving}
           saved={saved}
           onClick={() => patchSettings({
-            allowSelection:    settings.allowSelection,
             allowFavorites:    settings.allowFavorites,
             allowComments:     settings.allowComments,
             requireClientInfo: settings.requireClientInfo,
@@ -653,35 +616,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
     )
   }
 
-  function renderActivity() {
-    return (
-      <Section title="Activity" subtitle="Recent activity from clients on this gallery.">
-        {events.length === 0 ? (
-          <p className="text-sm font-sans text-stone-400">No activity recorded yet.</p>
-        ) : (
-          <div className="max-w-lg divide-y divide-stone-100">
-            {events.map((e) => (
-              <div key={e.id} className="flex items-center justify-between py-3">
-                <span className="text-sm font-sans text-stone-700">
-                  {EVENT_LABELS[e.eventType] ?? e.eventType}
-                  {e.metadata != null && 'email' in e.metadata && (
-                    <span className="text-stone-400 ml-2 text-xs">— {String((e.metadata as Record<string, unknown>).email)}</span>
-                  )}
-                  {e.metadata != null && 'photoCount' in e.metadata && (
-                    <span className="text-stone-400 ml-2 text-xs">— {String((e.metadata as Record<string, unknown>).photoCount)} photos</span>
-                  )}
-                </span>
-                <span className="text-xs font-sans text-stone-400 shrink-0 ml-4">
-                  {new Date(e.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </Section>
-    )
-  }
-
   function renderPresets() {
     return (
       <Section title="Presets" subtitle="Save settings as reusable templates for new galleries.">
@@ -747,7 +681,6 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
         {tab === 'downloads'    && renderDownloads()}
         {tab === 'interaction'  && renderInteraction()}
         {tab === 'protection'   && renderProtection()}
-        {tab === 'activity'     && renderActivity()}
         {tab === 'presets'      && renderPresets()}
       </div>
     </div>
@@ -1418,3 +1351,4 @@ function PresetsPanel({
     </div>
   )
 }
+
