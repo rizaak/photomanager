@@ -94,7 +94,7 @@ interface UploadFinalButtonProps {
   onSuccess:  (photoId: string) => void
 }
 
-function UploadFinalButton({ photoId, galleryId: _galleryId, onSuccess }: UploadFinalButtonProps) {
+function UploadFinalButton({ photoId, onSuccess }: UploadFinalButtonProps) {
   const inputRef  = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle')
 
@@ -252,7 +252,7 @@ export function SelectionWorkflowPanel({ galleryId, initialData }: SelectionWork
   function togglePhoto(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
       return next
     })
   }

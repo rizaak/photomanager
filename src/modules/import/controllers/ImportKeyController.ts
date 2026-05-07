@@ -4,7 +4,7 @@ import { ImportKeyService } from '../services/ImportKeyService'
 
 function err401() { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
-export async function handleListKeys(_req: NextRequest): Promise<NextResponse> {
+export async function handleListKeys(): Promise<NextResponse> {
   let photographerId: string
   try { photographerId = await getAuthenticatedPhotographer() } catch { return err401() }
 

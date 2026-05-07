@@ -47,9 +47,8 @@ export const PresetService = {
     if (!preset) throw Object.assign(new Error('Not found'), { status: 404 })
     if (preset.photographerId !== photographerId) throw Object.assign(new Error('Forbidden'), { status: 403 })
 
-    const { name: _n, ...rest } = parseBody({ name: preset.name, ...body })
-    const data: Partial<CreatePresetInput> = rest
-    if (typeof body.name === 'string' && body.name.trim()) data.name = body.name.trim()
+    const data: Partial<CreatePresetInput> = { ...parseBody({ name: preset.name, ...body }) }
+    data.name = (typeof body.name === 'string' && body.name.trim()) ? body.name.trim() : undefined
 
     if (typeof body.isDefault === 'boolean') {
       data.isDefault = body.isDefault

@@ -1,4 +1,8 @@
-// Auth0 routes are handled by the middleware (middleware.ts → auth0.middleware).
-// This file intentionally left as a no-op fallback — requests to /api/auth/*
-// should never reach here because the middleware intercepts them first.
 export const runtime = 'nodejs'
+
+import { NextResponse } from 'next/server'
+
+// Auth0 v4 handles /api/auth/* routes via middleware.
+// This file satisfies Next.js route type requirements.
+export function GET()  { return NextResponse.json({ error: 'Not found' }, { status: 404 }) }
+export function POST() { return NextResponse.json({ error: 'Not found' }, { status: 404 }) }

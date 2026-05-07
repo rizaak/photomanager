@@ -106,6 +106,7 @@ export function DashboardNav() {
           </div>
         </div>
 
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/api/auth/logout"
           className="flex items-center gap-2 text-xs text-stone-600 hover:text-stone-400 font-sans transition-colors w-full"

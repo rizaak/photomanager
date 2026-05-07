@@ -1,5 +1,4 @@
 import { GalleryRepository, type CreateGalleryInput, type GalleryListParams } from '../repositories/GalleryRepository'
-import { UsageService } from '../../photographers/services/UsageService'
 import { PhotoRepository } from '../../photos/repositories/PhotoRepository'
 import { storageProvider } from '../../../infrastructure/storage/StorageProvider'
 import { Prisma } from '@prisma/client'

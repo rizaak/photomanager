@@ -32,7 +32,31 @@
       "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/clients/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/clients/page.tsx\")",
       "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/sections/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/sections/page.tsx\")",
       "Bash(npm show *)",
-      "Bash(npm audit *)"
+      "Bash(npm audit *)",
+      "Bash(npm ci *)",
+      "Bash(npm run *)",
+      "Bash(sed -n '775,785p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/DashboardPhotoGrid.tsx)",
+      "Bash(sed -n '1000,1010p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/DashboardPhotoGrid.tsx)",
+      "Bash(sed -n '1500,1510p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/DashboardPhotoGrid.tsx)",
+      "Bash(sed -n '82,87p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/DeleteSectionDialog.tsx)",
+      "Bash(sed -n '1398,1406p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GalleryFeedbackClient.tsx)",
+      "Bash(sed -n '94,100p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/SelectionWorkflowPanel.tsx)",
+      "Bash(sed -n '252,258p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/SelectionWorkflowPanel.tsx)",
+      "Bash(sed -n '106,112p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/layout/DashboardNav.tsx)",
+      "Bash(sed -n '117,123p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/layout/GalleryNav.tsx)",
+      "Bash(sed -n '1,5p' /Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/\\\\\\(management\\\\\\)/clients/page.tsx)",
+      "Bash(sed -n '1,5p' \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/clients/page.tsx\")",
+      "Bash(sed -n '1,5p' /Users/isaaclopez/Documents/Isaac/PhotoManager/src/modules/galleries/services/GalleryService.ts)",
+      "Bash(sed -n '1130,1140p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '1310,1320p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '1398,1405p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '180,186p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '259,265p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '1128,1148p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '1305,1325p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '180,190p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '258,268p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)",
+      "Bash(sed -n '1394,1410p' /Users/isaaclopez/Documents/Isaac/PhotoManager/components/gallery/GallerySettingsClient.tsx)"
     ]
   }
 }

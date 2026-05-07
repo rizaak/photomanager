@@ -180,16 +180,6 @@ function SaveButton({ saving, saved, onClick }: { saving: boolean; saved: boolea
   )
 }
 
-function PlaceholderField({ label, hint }: { label: string; hint: string }) {
-  return (
-    <div className="mb-5">
-      <FieldLabel>{label}</FieldLabel>
-      <div className="max-w-sm h-10 bg-stone-50 border border-dashed border-stone-200 flex items-center px-4">
-        <span className="text-xs font-sans text-stone-300">{hint}</span>
-      </div>
-    </div>
-  )
-}
 
 function TagsInput({ value, onChange }: { value: string[]; onChange: (tags: string[]) => void }) {
   const [input, setInput] = useState('')
@@ -259,7 +249,7 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
   const [tab,              setTab]              = useState<Tab>('presentation')
   const [settings,         setSettings]         = useState(initialSettings)
   const [presets,          setPresets]          = useState(initialPresets)
-  const [watermarkPresets, setWatermarkPresets] = useState(initialWatermarkPresets)
+  const [watermarkPresets] = useState(initialWatermarkPresets)
   const [saving,           setSaving]           = useState(false)
   const [saved,            setSaved]            = useState(false)
 
@@ -1132,11 +1122,11 @@ function PresentationTab({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const all: GalleryPhoto[] = [
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ...(data.sections ?? []).flatMap((s: any) => s.photos),
           ...(data.unsectioned ?? []),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ].map((p: any) => ({ id: p.id, thumbnailUrl: p.thumbnailUrl ?? null, filename: p.filename }))
         setPhotos(all)
       })
@@ -1310,10 +1300,11 @@ function CoverPhotoSelector({
       const res = await fetch(`/api/galleries/${galleryId}/photos`)
       if (!res.ok) return
       const data = await res.json()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const all: GalleryPhoto[] = [
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(data.sections ?? []).flatMap((s: any) => s.photos),
         ...(data.unsectioned ?? []),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ].map((p: any) => ({ id: p.id, thumbnailUrl: p.thumbnailUrl ?? null, filename: p.filename }))
       setPhotos(all)
       setOpen(true)
@@ -1399,7 +1390,6 @@ function CoverPhotoSelector({
 // ── PresetsPanel ───────────────────────────────────────────────────────────────
 
 function PresetsPanel({
-  galleryId: _galleryId,
   settings,
   presets,
   onPresetsChange,

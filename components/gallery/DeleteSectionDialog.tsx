@@ -81,7 +81,7 @@ export function DeleteSectionDialog({ section, galleryId, onClose, onDeleted }: 
         <div className="px-6 py-5">
           <p className="text-sm font-sans text-stone-700 mb-1">
             Delete{' '}
-            <span className="font-medium text-stone-900">"{section.title}"</span>?
+            <span className="font-medium text-stone-900">&ldquo;{section.title}&rdquo;</span>?
           </p>
           <p className="text-sm font-sans text-stone-400 leading-relaxed">
             Photos inside will not be deleted. They will remain in the gallery as unsectioned photos.

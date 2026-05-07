@@ -117,6 +117,7 @@ export function GalleryNav({ galleryId, galleryTitle, galleryStatus }: GalleryNa
             <Settings size={12} strokeWidth={1.5} />
             Settings
           </Link>
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/api/auth/logout"
             className="flex items-center gap-1.5 text-[11px] font-sans text-stone-600 hover:text-stone-300 transition-colors"

@@ -7,7 +7,6 @@ import { UsageService } from '../../photographers/services/UsageService'
 import { ImportKeyRepository } from '../repositories/ImportKeyRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
 import { GalleryService } from '../../galleries/services/GalleryService'
-import { prisma } from '@/src/infrastructure/database/db'
 
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',

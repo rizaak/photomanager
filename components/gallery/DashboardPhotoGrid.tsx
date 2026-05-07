@@ -777,7 +777,7 @@ export function DashboardPhotoGrid({
   function toggleSectionCollapse(sectionId: string) {
     setCollapsedSections((prev) => {
       const next = new Set(prev)
-      next.has(sectionId) ? next.delete(sectionId) : next.add(sectionId)
+      if (next.has(sectionId)) { next.delete(sectionId) } else { next.add(sectionId) }
       saveCollapsed(next)
       return next
     })
@@ -1002,7 +1002,7 @@ export function DashboardPhotoGrid({
     lastClickedId.current = id
     setSelectedIds((prev) => {
       const n = new Set(prev)
-      n.has(id) ? n.delete(id) : n.add(id)
+      if (n.has(id)) { n.delete(id) } else { n.add(id) }
       return n
     })
   }
@@ -1503,7 +1503,7 @@ export function DashboardPhotoGrid({
           onClose={() => setModalState(null)}
           onToggleSelect={(id) => {
             lastClickedId.current = id
-            setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+            setSelectedIds((prev) => { const n = new Set(prev); if (n.has(id)) { n.delete(id) } else { n.add(id) }; return n })
           }}
         />
       )}
