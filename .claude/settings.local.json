@@ -30,7 +30,9 @@
       "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/gallery/[token]/error.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/g/[token]/error.tsx\")",
       "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/activity/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/activity/page.tsx\")",
       "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/clients/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/clients/page.tsx\")",
-      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/sections/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/sections/page.tsx\")"
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/sections/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/sections/page.tsx\")",
+      "Bash(npm show *)",
+      "Bash(npm audit *)"
     ]
   }
 }
