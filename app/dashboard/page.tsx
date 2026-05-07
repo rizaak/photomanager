@@ -89,7 +89,7 @@ export default async function DashboardPage({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {readyToDeliver.map((g) => (
-              <Link key={g.id} href={`/dashboard/gallery/${g.id}`}>
+              <Link key={g.id} href={`/dashboard/galleries/${g.id}`}>
                 <Button variant="primary" size="sm">
                   <Download size={13} strokeWidth={1.5} />
                   {readyToDeliver.length === 1 ? 'Enable download' : g.title}

@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { DashboardNav } from './DashboardNav'
 
-const GALLERY_RE = /^\/dashboard\/gallery\/[^/]+/
+const GALLERY_RE = /^\/dashboard\/galleries?\/[^/]+/
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname()

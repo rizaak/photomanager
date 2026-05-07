@@ -13,22 +13,21 @@ type RawPhoto = {
   watermarkedKey: string | null
 }
 
-// Public-facing: both grid and modal always serve watermarked URLs.
-// The DB query (findGalleryWithReadyPhotos) already requires watermarkedKey NOT NULL,
-// so the assertion is safe. When watermark is disabled the worker still writes the
-// clean preview to watermarkedKey — so this is correct in both cases.
-async function signPhoto(photo: RawPhoto) {
-  const watermarkedUrl = await storageProvider.getSignedUrl(photo.watermarkedKey!, URL_EXPIRY_SECONDS)
+// Public-facing photo signing.
+// watermarkEnabled=true (default) → serve watermarkedKey (may contain baked-in watermark).
+// watermarkEnabled=false → serve thumbnailKey (clean, resized, never the original).
+// Both keys are guaranteed non-null for READY photos by findGalleryWithReadyPhotos.
+async function signPhoto(photo: RawPhoto, watermarkEnabled = true) {
+  const key = watermarkEnabled ? photo.watermarkedKey! : (photo.thumbnailKey ?? photo.watermarkedKey!)
+  const url = await storageProvider.getSignedUrl(key, URL_EXPIRY_SECONDS)
   return {
     id:             photo.id,
     galleryId:      photo.galleryId,
     filename:       photo.filename,
     width:          photo.width  ?? 3,
     height:         photo.height ?? 2,
-    // thumbnailUrl intentionally points to watermarked asset — the grid must
-    // never serve the clean thumbnail to public clients.
-    thumbnailUrl:   watermarkedUrl,
-    watermarkedUrl,
+    thumbnailUrl:   url,
+    watermarkedUrl: url,
   }
 }
 
@@ -46,11 +45,11 @@ export const GalleryPhotosService = {
         id:        s.id,
         title:     s.title,
         sortOrder: s.sortOrder,
-        photos:    await Promise.all(s.photos.map(signPhoto)),
+        photos:    await Promise.all(s.photos.map((p) => signPhoto(p, s.watermarkEnabled))),
       })),
     )
 
-    const unsectioned = await Promise.all(result.photos.map(signPhoto))
+    const unsectioned = await Promise.all(result.photos.map((p) => signPhoto(p)))
 
     const pending = nonReady.map((p) => ({
       id:        p.id,
@@ -92,8 +91,8 @@ export const GalleryPhotosService = {
                               ? 'ready'
                               : 'processing',
         editStatus:       p.editStatus as string,
-        isClientSelected: p._count.selectionItems > 0,
         hasComments:      p._count.comments > 0,
+        hasFavorites:     p._count.favorites > 0,
         hasFinal:                  !!p.finalKey,
         labels:                    p.labels,
         appliedWatermarkPresetId:  p.appliedWatermarkPresetId ?? null,

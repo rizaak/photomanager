@@ -20,7 +20,17 @@
       "Bash(grep:*)",
       "Bash(find:*)",
       "Bash(npx eslint:*)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(mkdir -p \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/g/[token]\")",
+      "Bash(mkdir -p \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/activity\")",
+      "Bash(mkdir -p \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/clients\")",
+      "Bash(mkdir -p \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/sections\")",
+      "Bash(mkdir -p \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/selections\")",
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/gallery/[token]/loading.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/g/[token]/loading.tsx\")",
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/gallery/[token]/error.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/g/[token]/error.tsx\")",
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/activity/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/activity/page.tsx\")",
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/clients/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/clients/page.tsx\")",
+      "Bash(cp \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/gallery/[id]/sections/page.tsx\" \"/Users/isaaclopez/Documents/Isaac/PhotoManager/app/dashboard/galleries/[id]/sections/page.tsx\")"
     ]
   }
 }

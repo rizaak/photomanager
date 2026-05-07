@@ -59,4 +59,17 @@ export const CommentRepository = {
       },
     })
   },
+
+  async findByPhoto(galleryId: string, photoId: string) {
+    return prisma.comment.findMany({
+      where:   { galleryId, photoId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id:        true,
+        body:      true,
+        createdAt: true,
+        galleryClient: { select: { name: true, email: true } },
+      },
+    })
+  },
 }

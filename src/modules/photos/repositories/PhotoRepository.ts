@@ -5,7 +5,7 @@ export interface PhotoListParams {
   q?:             string
   status?:        string   // 'processing'|'ready'|'selected'|'editing'|'final_ready'|'failed'
   sectionId?:     string   // UUID or 'none'
-  clientSelected?: boolean
+  hasFavorites?:  boolean
   hasComments?:   boolean
   hasFinal?:      boolean
   labels?:        string[]
@@ -15,12 +15,14 @@ export interface PhotoListParams {
 }
 
 export interface CreatePhotoInput {
-  id: string
-  galleryId: string
-  filename: string
-  originalKey: string
-  sizeBytes: bigint
-  mimeType: string
+  id:               string
+  galleryId:        string
+  filename:         string
+  originalKey:      string
+  sizeBytes:        bigint
+  mimeType:         string
+  originalFilename?: string
+  source?:          import('@prisma/client').PhotoSource
 }
 
 export interface UpdateProcessedInput {
@@ -36,13 +38,15 @@ export const PhotoRepository = {
   async create(input: CreatePhotoInput): Promise<void> {
     await prisma.photo.create({
       data: {
-        id: input.id,
-        galleryId: input.galleryId,
-        filename: input.filename,
-        originalKey: input.originalKey,
-        sizeBytes: input.sizeBytes,
-        mimeType: input.mimeType,
-        status: PhotoStatus.UPLOADING,
+        id:               input.id,
+        galleryId:        input.galleryId,
+        filename:         input.filename,
+        originalKey:      input.originalKey,
+        sizeBytes:        input.sizeBytes,
+        mimeType:         input.mimeType,
+        status:           PhotoStatus.UPLOADING,
+        ...(input.originalFilename && { originalFilename: input.originalFilename }),
+        ...(input.source           && { source: input.source }),
       },
     })
   },
@@ -84,6 +88,7 @@ export const PhotoRepository = {
             id: true,
             title: true,
             sortOrder: true,
+            watermarkEnabled: true,
             photos: {
               where: READY_WHERE,
               orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
@@ -231,7 +236,7 @@ export const PhotoRepository = {
     if      (params.sectionId === 'none') where.sectionId = null
     else if (params.sectionId)            where.sectionId = params.sectionId
 
-    if (params.clientSelected) where.selectionItems = { some: {} }
+    if (params.hasFavorites)   where.favorites       = { some: {} }
     if (params.hasComments)    where.comments        = { some: {} }
     if (params.hasFinal)       where.finalKey        = { not: null }
     if (params.labels?.length) where.labels          = { hasSome: params.labels }
@@ -240,7 +245,7 @@ export const PhotoRepository = {
     switch (params.sort) {
       case 'date_asc':      orderBy = [{ createdAt: 'asc' }];                                             break
       case 'filename':      orderBy = [{ filename: 'asc' }];                                              break
-      case 'selected_first':orderBy = [{ selectionItems: { _count: 'desc' } }, { createdAt: 'desc' }];   break
+      case 'selected_first':orderBy = [{ favorites: { _count: 'desc' } }, { createdAt: 'desc' }];         break
       case 'final_first':   orderBy = [{ editStatus: 'desc' }, { createdAt: 'desc' }];                   break
       default:              orderBy = [{ sortOrder: 'asc' }, { createdAt: 'desc' }]
     }
@@ -264,7 +269,7 @@ export const PhotoRepository = {
           labels:                    true,
           appliedWatermarkPresetId:  true,
           createdAt:                 true,
-          _count: { select: { selectionItems: true, comments: true } },
+          _count: { select: { comments: true, favorites: true } },
         },
       }),
       prisma.photo.count({ where }),

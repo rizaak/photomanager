@@ -15,7 +15,7 @@ const ACTION_META: Record<GalleryAction, {
 }> = {
   share:     { label: 'Not shared',       dot: 'bg-stone-300',   chip: 'text-stone-400 bg-stone-50 border-stone-200' },
   awaiting:  { label: 'Awaiting client',  dot: 'bg-stone-400',   chip: 'text-stone-500 bg-stone-50 border-stone-200' },
-  selecting: { label: 'Selecting',        dot: 'bg-amber-400',   chip: 'text-amber-700 bg-amber-50 border-amber-200' },
+  selecting: { label: 'Reviewing',        dot: 'bg-amber-400',   chip: 'text-amber-700 bg-amber-50 border-amber-200' },
   deliver:   { label: 'Ready to deliver', dot: 'bg-accent',      chip: 'text-[#7a5c10] bg-[#fdf6e8] border-[#e8c96e]' },
   delivered: { label: 'Delivered',        dot: 'bg-emerald-400', chip: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
   archived:  { label: 'Archived',         dot: 'bg-stone-300',   chip: 'text-stone-400 bg-stone-50 border-stone-200' },
@@ -65,7 +65,7 @@ export function GalleryCard({
 
   return (
     <Link
-      href={`/dashboard/gallery/${gallery.id}`}
+      href={`/dashboard/galleries/${gallery.id}`}
       className="group block bg-white transition-all duration-300 relative"
       style={{
         border: isSelected
@@ -172,7 +172,7 @@ export function GalleryCard({
               <span className="text-stone-700 font-medium tabular-nums">{selectedCount}</span>
               {' of '}
               <span className="tabular-nums">{gallery.photoCount}</span>
-              {' photos selected'}
+              {' favorites'}
             </p>
           </div>
         )}
@@ -209,7 +209,7 @@ export function GalleryCard({
           )}
 
           {action === 'selecting' && (
-            <span className="text-[11px] font-sans text-stone-500 italic">Selecting…</span>
+            <span className="text-[11px] font-sans text-stone-500 italic">Reviewing…</span>
           )}
 
           {action === 'delivered' && (

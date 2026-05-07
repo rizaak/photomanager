@@ -15,6 +15,7 @@ const NAV: { label: string; segment: string | null }[] = [
   { label: 'Photos',   segment: null       },
   { label: 'Upload',   segment: 'upload'   },
   { label: 'Clients',  segment: 'clients'  },
+  { label: 'Feedback', segment: 'feedback' },
   { label: 'Activity', segment: 'activity' },
   { label: 'Settings', segment: 'settings' },
 ]
@@ -28,7 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
 export function GalleryNav({ galleryId, galleryTitle, galleryStatus }: GalleryNavProps) {
   const pathname = usePathname()
   const { user } = useUser()
-  const base      = `/dashboard/gallery/${galleryId}`
+  const base      = `/dashboard/galleries/${galleryId}`
 
   const displayName = user?.name ?? user?.email ?? ''
   const initial     = displayName.charAt(0).toUpperCase()

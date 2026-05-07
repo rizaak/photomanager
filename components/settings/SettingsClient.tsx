@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2, Star, UploadCloud, Loader2, Pencil } from 'lucide-react'
+import { Trash2, Star, UploadCloud, Loader2, Pencil, Copy, Check, KeyRound, X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 
@@ -37,17 +37,29 @@ interface SubscriptionData {
   percent: number
 }
 
+interface ApiKeyRecord {
+  id:               string
+  label:            string | null
+  defaultGalleryId: string | null
+  active:           boolean
+  lastUsedAt:       string | null
+  createdAt:        string
+  defaultGallery:   { title: string } | null
+}
+
 interface Props {
   initialTab:              string
   profile:                 ProfileData
   subscription:            SubscriptionData
   initialWatermarkPresets: WatermarkPreset[]
+  initialApiKeys:          ApiKeyRecord[]
 }
 
 const TABS = [
   { id: 'profile',      label: 'Profile'      },
   { id: 'subscription', label: 'Subscription' },
   { id: 'watermarks',   label: 'Watermarks'   },
+  { id: 'api-keys',     label: 'API Keys'     },
   { id: 'danger',       label: 'Danger Zone'  },
 ]
 
@@ -70,7 +82,7 @@ const POSITION_STYLE: Record<WatermarkPosition, React.CSSProperties> = {
 
 // ── SettingsClient ─────────────────────────────────────────────────────────────
 
-export function SettingsClient({ initialTab, profile, subscription, initialWatermarkPresets }: Props) {
+export function SettingsClient({ initialTab, profile, subscription, initialWatermarkPresets, initialApiKeys }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState(initialTab)
 
@@ -107,6 +119,7 @@ export function SettingsClient({ initialTab, profile, subscription, initialWater
         {activeTab === 'profile'      && <ProfileTab      profile={profile}           />}
         {activeTab === 'subscription' && <SubscriptionTab subscription={subscription} />}
         {activeTab === 'watermarks'   && <WatermarksTab   initialPresets={initialWatermarkPresets} />}
+        {activeTab === 'api-keys'     && <ApiKeysTab      initialKeys={initialApiKeys} />}
         {activeTab === 'danger'       && <DangerTab />}
       </div>
     </div>
@@ -626,6 +639,307 @@ function WatermarkLivePreview({
           </span>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── API Keys tab ──────────────────────────────────────────────────────────────
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function ApiKeysTab({ initialKeys }: { initialKeys: ApiKeyRecord[] }) {
+  const [keys,       setKeys]       = useState(initialKeys)
+  const [showCreate, setShowCreate] = useState(false)
+  const [revoking,   setRevoking]   = useState<string | null>(null)
+
+  async function handleRevoke(key: ApiKeyRecord) {
+    if (!confirm(`Revoke "${key.label || 'Unnamed key'}"? Any plugin using it will stop working immediately.`)) return
+    setRevoking(key.id)
+    try {
+      const res = await fetch(`/api/import/keys/${key.id}`, { method: 'DELETE' })
+      if (res.ok) setKeys((prev) => prev.filter((k) => k.id !== key.id))
+    } finally {
+      setRevoking(null)
+    }
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-sans text-stone-400 mb-6">
+        API keys let external tools like Lightroom plugins upload photos directly to your account.
+        You can specify the target gallery per-upload or set a default on the key.
+      </p>
+
+      <button
+        onClick={() => setShowCreate(true)}
+        className="flex items-center gap-1.5 px-4 py-2 text-xs font-sans border border-stone-300 text-stone-700 hover:border-stone-500 hover:text-stone-900 transition-colors mb-8"
+      >
+        <KeyRound size={11} strokeWidth={1.5} />
+        New API key
+      </button>
+
+      {keys.length === 0 ? (
+        <p className="text-sm font-sans text-stone-400">
+          No API keys yet. Create one to connect Lightroom or other plugins.
+        </p>
+      ) : (
+        <div className="border border-stone-100 divide-y divide-stone-100">
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 px-5 py-2.5 text-[10px] font-sans uppercase tracking-widest text-stone-400">
+            <span>Name</span>
+            <span>Default gallery</span>
+            <span>Created</span>
+            <span>Last used</span>
+            <span />
+          </div>
+          {keys.map((key) => (
+            <div key={key.id} className="grid grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-center px-5 py-3.5">
+              <span className="text-sm font-sans text-stone-800 truncate">
+                {key.label || <span className="text-stone-400 italic">Unnamed</span>}
+              </span>
+              <span className="text-sm font-sans text-stone-500 truncate">
+                {key.defaultGallery ? key.defaultGallery.title : <span className="text-stone-300 italic">None</span>}
+              </span>
+              <span className="text-xs font-sans text-stone-400 whitespace-nowrap">{fmtDate(key.createdAt)}</span>
+              <span className="text-xs font-sans text-stone-400 whitespace-nowrap">
+                {key.lastUsedAt ? fmtDate(key.lastUsedAt) : '—'}
+              </span>
+              <button
+                onClick={() => handleRevoke(key)}
+                disabled={revoking === key.id}
+                title="Revoke key"
+                className="text-stone-300 hover:text-red-500 transition-colors disabled:opacity-40"
+              >
+                {revoking === key.id
+                  ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+                  : <Trash2 size={13} strokeWidth={1.5} />}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateKeyModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(newKey) => setKeys((prev) => [...prev, newKey])}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── CreateKeyModal ─────────────────────────────────────────────────────────────
+
+interface NewKeyResult {
+  id:               string
+  label:            string | null
+  defaultGalleryId: string | null
+  active:           true
+  lastUsedAt:       null
+  createdAt:        string
+  key:              string  // plaintext — only present right after creation
+}
+
+function CreateKeyModal({
+  onClose,
+  onCreated,
+}: {
+  onClose:   () => void
+  onCreated: (key: ApiKeyRecord) => void
+}) {
+  type Phase = 'form' | 'revealed'
+  const [phase,      setPhase]      = useState<Phase>('form')
+  const [label,           setLabel]           = useState('')
+  const [defaultGalleryId, setDefaultGalleryId] = useState('')
+  const [galleries,       setGalleries]       = useState<{ id: string; title: string }[]>([])
+  const [loadingGal,      setLoadingGal]      = useState(true)
+  const [creating,        setCreating]        = useState(false)
+  const [error,           setError]           = useState<string | null>(null)
+  const [revealedKey,     setRevealedKey]     = useState('')
+  const [copied,          setCopied]          = useState(false)
+
+  useEffect(() => {
+    fetch('/api/galleries?limit=200')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.galleries) setGalleries(data.galleries.map((g: { id: string; title: string }) => ({ id: g.id, title: g.title })))
+      })
+      .catch(() => {})
+      .finally(() => setLoadingGal(false))
+  }, [])
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setCreating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/import/keys', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          defaultGalleryId: defaultGalleryId || undefined,
+          label:            label.trim() || undefined,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Failed to create key')
+      }
+      const data: NewKeyResult = await res.json()
+      setRevealedKey(data.key)
+      setPhase('revealed')
+      onCreated({
+        id:               data.id,
+        label:            data.label,
+        defaultGalleryId: data.defaultGalleryId,
+        active:           true,
+        lastUsedAt:       null,
+        createdAt:        data.createdAt,
+        defaultGallery:   data.defaultGalleryId
+          ? (galleries.find((g) => g.id === data.defaultGalleryId) ?? null)
+          : null,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(revealedKey)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* clipboard not available */
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="relative bg-white w-full max-w-md mx-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+          <p className="text-sm font-sans font-medium text-stone-800">
+            {phase === 'form' ? 'New API key' : 'API key created'}
+          </p>
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700 transition-colors">
+            <X size={15} strokeWidth={1.5} />
+          </button>
+        </div>
+
+        {phase === 'form' ? (
+          <form onSubmit={handleCreate} className="px-6 py-5 space-y-5">
+            {/* Name */}
+            <div>
+              <label className="block text-[10px] font-sans uppercase tracking-widest text-stone-400 mb-1.5">
+                Name <span className="normal-case tracking-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g. Lightroom plugin"
+                autoFocus
+                className="w-full px-4 py-2.5 text-sm font-sans text-stone-800 border border-stone-200 focus:outline-none focus:border-stone-400 transition-colors"
+              />
+            </div>
+
+            {/* Default gallery (optional) */}
+            <div>
+              <label className="block text-[10px] font-sans uppercase tracking-widest text-stone-400 mb-1.5">
+                Default gallery <span className="normal-case tracking-normal">(optional)</span>
+              </label>
+              {loadingGal ? (
+                <div className="flex items-center gap-2 text-xs font-sans text-stone-400 py-2">
+                  <Loader2 size={12} strokeWidth={1.5} className="animate-spin" />
+                  Loading galleries…
+                </div>
+              ) : (
+                <select
+                  value={defaultGalleryId}
+                  onChange={(e) => setDefaultGalleryId(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm font-sans text-stone-700 border border-stone-200 bg-white focus:outline-none focus:border-stone-400 transition-colors"
+                >
+                  <option value="">No default — specify per upload</option>
+                  {galleries.map((g) => (
+                    <option key={g.id} value={g.id}>{g.title}</option>
+                  ))}
+                </select>
+              )}
+              <p className="text-[11px] font-sans text-stone-400 mt-1.5">
+                Used when an upload doesn&apos;t specify a gallery. You can always pass gallery_id or gallery_name per request.
+              </p>
+            </div>
+
+            {error && (
+              <p className="text-xs font-sans text-red-500">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={creating}
+              className="w-full py-2.5 text-sm font-sans bg-stone-900 text-white hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {creating
+                ? <span className="flex items-center justify-center gap-2"><Loader2 size={13} strokeWidth={1.5} className="animate-spin" /> Creating…</span>
+                : 'Create API key'}
+            </button>
+          </form>
+        ) : (
+          <div className="px-6 py-5 space-y-5">
+            {/* Warning banner */}
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 px-4 py-3">
+              <AlertTriangle size={14} strokeWidth={1.5} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs font-sans text-amber-700 leading-relaxed">
+                Copy this key now. It won&apos;t be shown again. Treat it like a password — anyone with this key can upload photos to your account.
+              </p>
+            </div>
+
+            {/* Key display + copy */}
+            <div>
+              <label className="block text-[10px] font-sans uppercase tracking-widest text-stone-400 mb-1.5">
+                API Key
+              </label>
+              <div className="flex items-stretch border border-stone-200">
+                <code className="flex-1 px-3 py-2.5 text-xs font-mono text-stone-700 bg-stone-50 break-all leading-relaxed">
+                  {revealedKey}
+                </code>
+                <button
+                  onClick={handleCopy}
+                  title="Copy to clipboard"
+                  className={`px-3 shrink-0 border-l border-stone-200 transition-colors ${
+                    copied
+                      ? 'text-emerald-600 bg-emerald-50'
+                      : 'text-stone-400 hover:text-stone-700 hover:bg-stone-50'
+                  }`}
+                >
+                  {copied
+                    ? <Check size={14} strokeWidth={2} />
+                    : <Copy size={14} strokeWidth={1.5} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 text-sm font-sans bg-stone-900 text-white hover:bg-stone-800 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

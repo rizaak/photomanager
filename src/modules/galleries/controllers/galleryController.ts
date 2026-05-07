@@ -66,29 +66,17 @@ export async function handleResolveGalleryAccess(
     clientToken?: string
     name?:        string
     email?:       string
-    preview?:     boolean
   } = {}
   try { body = await req.json() } catch { /* no body */ }
 
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 
-  // Photographer preview mode — verify Auth0 session so DRAFT galleries are accessible to their owner
-  let photographerId: string | undefined
-  if (body.preview === true) {
-    try {
-      photographerId = await getAuthenticatedPhotographer()
-    } catch {
-      // Not authenticated — fall through, access gates apply normally
-    }
-  }
-
   try {
     const result = await GalleryAccessService.resolveAccess(token, {
-      password:       str(body.password),
-      clientToken:    str(body.clientToken),
-      name:           str(body.name),
-      email:          str(body.email),
-      photographerId,
+      password:    str(body.password),
+      clientToken: str(body.clientToken),
+      name:        str(body.name),
+      email:       str(body.email),
     })
 
     switch (result.gate) {

@@ -83,7 +83,7 @@ export default async function GalleryManagementPage({ params }: { params: Promis
           <div className="flex items-center justify-between px-5 py-3.5 border border-stone-200 bg-stone-50/60">
             <div className="flex items-center gap-4">
               <span className="text-[10px] font-sans text-stone-400 uppercase tracking-widest shrink-0">
-                Client Selection
+                Client Favorites
               </span>
               <span className="text-sm font-sans text-stone-700">
                 {sel.photoCount} photo{sel.photoCount !== 1 ? 's' : ''}

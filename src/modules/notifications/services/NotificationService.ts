@@ -9,11 +9,11 @@ function baseUrl(): string {
 }
 
 function dashboardUrl(galleryId: string): string {
-  return `${baseUrl()}/dashboard/gallery/${galleryId}`
+  return `${baseUrl()}/dashboard/galleries/${galleryId}`
 }
 
 function galleryUrl(shareToken: string): string {
-  return `${baseUrl()}/gallery/${shareToken}`
+  return `${baseUrl()}/g/${shareToken}`
 }
 
 // ── DB context ─────────────────────────────────────────────────────────────────

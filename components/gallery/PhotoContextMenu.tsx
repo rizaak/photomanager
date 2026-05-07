@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Image, Droplets, X, ChevronRight, Tag, Pencil,
-  CheckCircle2, Trash2, Loader2, Check,
+  CheckCircle2, Trash2, Loader2, Check, Users,
 } from 'lucide-react'
 import type { GridPhoto, GridSection } from './DashboardPhotoGrid'
 
@@ -26,6 +26,7 @@ interface Props {
   onUpdated:        (photoId: string, patch: Partial<GridPhoto & { watermarkQueued?: boolean }>) => void
   onDeleted:        (photoId: string) => void
   onCoverSet:       (photoId: string) => void
+  onViewFeedback:   () => void
 }
 
 type Panel = 'watermark' | 'section' | 'tags' | null
@@ -34,7 +35,7 @@ type Panel = 'watermark' | 'section' | 'tags' | null
 
 export function PhotoContextMenu({
   galleryId, photo, position, sections, watermarkPresets,
-  onClose, onUpdated, onDeleted, onCoverSet,
+  onClose, onUpdated, onDeleted, onCoverSet, onViewFeedback,
 }: Props) {
   const [panel,        setPanel]        = useState<Panel>(null)
   const [tagInput,     setTagInput]     = useState('')
@@ -190,6 +191,13 @@ export function PhotoContextMenu({
         label="Set as cover photo"
         busy={isBusy('cover')}
         onClick={handleSetCover}
+      />
+
+      {/* View client feedback */}
+      <MenuItem
+        icon={<Users size={12} strokeWidth={1.5} />}
+        label="View client feedback"
+        onClick={() => { onClose(); onViewFeedback() }}
       />
 
       <Divider />

@@ -10,14 +10,14 @@ const EVENT_LABEL: Record<GalleryEventType, string> = {
   PHOTO_FAVORITED:     'Photo favourited',
   PHOTO_UNFAVORITED:   'Photo unfavourited',
   COMMENT_ADDED:       'Comment added',
-  SELECTION_SUBMITTED: 'Selection submitted',
+  SELECTION_SUBMITTED: 'Client submitted feedback',
   FINAL_UPLOADED:      'Final uploaded',
   FINALS_READY:        'Finals marked as ready',
   DOWNLOAD_REQUESTED:  'Download requested',
 }
 
 const EVENT_DOT: Partial<Record<GalleryEventType, string>> = {
-  CLIENT_REGISTERED:   'bg-stone-500',
+  CLIENT_REGISTERED:   'bg-emerald-500',
   SELECTION_SUBMITTED: 'bg-amber-500',
   FINAL_UPLOADED:      'bg-blue-400',
   FINALS_READY:        'bg-amber-400',

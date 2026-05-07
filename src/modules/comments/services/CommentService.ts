@@ -1,7 +1,6 @@
 import { CommentRepository } from '../repositories/CommentRepository'
 import { ClientRepository } from '../../clients/repositories/ClientRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
-import { ActivityService } from '../../activity/services/ActivityService'
 import { QueueProvider } from '../../../infrastructure/queue/QueueProvider'
 
 async function resolveClientId(clientToken: string | undefined, galleryId: string): Promise<{ id: string; name: string; email: string } | null> {
@@ -32,7 +31,6 @@ export const CommentService = {
 
     const comment = await CommentRepository.create(client.id, galleryId, trimmed, photoId)
 
-    ActivityService.log(galleryId, 'COMMENT_ADDED', { name: client.name, comment: trimmed })
     QueueProvider.enqueueNotification('COMMENT_ADDED', {
       galleryId, clientName: client.name, comment: trimmed,
     }).catch((err) => console.error('[CommentService] enqueue COMMENT_ADDED:', err))

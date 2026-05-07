@@ -82,7 +82,7 @@ const features = [
     icon: Download,
     title: 'Controlled delivery',
     description:
-      "Enable downloads only when you're ready. Clients download their final selections via secure signed links.",
+      "Enable downloads only when you're ready. Clients download their final favorites via secure signed links.",
   },
 ]
 
@@ -95,7 +95,7 @@ const steps = [
   {
     title: 'Share with your client',
     description:
-      'Send a private link. Your client browses their gallery, marks favorites, and submits their selections.',
+      'Send a private link. Your client browses their gallery, marks favorites, and submits their picks.',
   },
   {
     title: 'Deliver with confidence',
@@ -146,7 +146,7 @@ export default async function LandingPage() {
               Your work,<br />beautifully<br />delivered.
             </h1>
             <p className="text-stone-400 text-lg md:text-xl font-sans leading-relaxed mb-12 max-w-lg">
-              Share private galleries with clients. Let them select their favorites.
+              Share private galleries with clients. Let them mark their favorites.
               Deliver final images effortlessly.
             </p>
             <div className="flex gap-4 flex-wrap items-center">

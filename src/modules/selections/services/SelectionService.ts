@@ -61,12 +61,10 @@ export const SelectionService = {
 
     if (photoIds.includes(photoId)) {
       await SelectionRepository.removePhoto(selection.id, photoId)
-      ActivityService.log(galleryId, 'PHOTO_DESELECTED', { photoId })
       return { photoId, selected: false }
     }
 
     await SelectionRepository.addPhoto(selection.id, photoId)
-    ActivityService.log(galleryId, 'PHOTO_SELECTED', { photoId })
     return { photoId, selected: true }
   },
 

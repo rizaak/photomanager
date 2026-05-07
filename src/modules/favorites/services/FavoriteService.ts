@@ -2,7 +2,6 @@ import { FavoriteRepository } from '../repositories/FavoriteRepository'
 import { CommentRepository } from '../../comments/repositories/CommentRepository'
 import { ClientRepository } from '../../clients/repositories/ClientRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
-import { ActivityService } from '../../activity/services/ActivityService'
 
 async function resolveClientId(clientToken: string | undefined, galleryId: string): Promise<string | null> {
   if (!clientToken) return null
@@ -26,7 +25,6 @@ export const FavoriteService = {
     }
 
     const favorited = await FavoriteRepository.toggle(galleryClientId, galleryId, photoId)
-    ActivityService.log(galleryId, favorited ? 'PHOTO_FAVORITED' : 'PHOTO_UNFAVORITED', { photoId })
     return { photoId, favorited }
   },
 

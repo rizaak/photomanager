@@ -184,8 +184,8 @@ export function GalleryCardMenu({ gallery, folders, onTitleChange }: GalleryCard
 
   const shareUrl =
     typeof window !== 'undefined'
-      ? `${window.location.origin}/gallery/${gallery.shareToken}`
-      : `/gallery/${gallery.shareToken}`
+      ? `${window.location.origin}/g/${gallery.shareToken}`
+      : `/g/${gallery.shareToken}`
 
   // Close on outside click
   useEffect(() => {
@@ -297,13 +297,13 @@ export function GalleryCardMenu({ gallery, folders, onTitleChange }: GalleryCard
             onClick={(e) => e.stopPropagation()}
           >
             {/* Open */}
-            <Item icon={<ExternalLink size={12} strokeWidth={1.75} />} onClick={() => { close(); router.push(`/dashboard/gallery/${gallery.id}`) }}>
+            <Item icon={<ExternalLink size={12} strokeWidth={1.75} />} onClick={() => { close(); router.push(`/dashboard/galleries/${gallery.id}`) }}>
               Open gallery
             </Item>
 
-            {/* Preview public */}
-            <Item icon={<ExternalLink size={12} strokeWidth={1.75} />} onClick={() => { close(); window.open(`/gallery/${gallery.shareToken}`, '_blank') }}>
-              Preview public view
+            {/* Preview — authenticated photographer route */}
+            <Item icon={<ExternalLink size={12} strokeWidth={1.75} />} onClick={() => { close(); window.open(`/dashboard/galleries/${gallery.id}/preview`, '_blank') }}>
+              Preview
             </Item>
 
             <Divider />

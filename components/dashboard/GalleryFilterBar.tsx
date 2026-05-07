@@ -17,7 +17,7 @@ const SORT_OPTIONS = [
   { value: 'oldest',   label: 'Oldest first'     },
   { value: 'name',     label: 'Name A–Z'         },
   { value: 'active',   label: 'Recently active'  },
-  { value: 'selected', label: 'Most selected'    },
+  { value: 'selected', label: 'Most liked'        },
 ]
 
 interface Props {
@@ -143,7 +143,7 @@ export function GalleryFilterBar({ allTags }: Props) {
           active={hasSelections}
           onClick={() => updateParams({ hasSelections: hasSelections ? null : 'true' })}
         >
-          Has selections
+          Has client favorites
         </Chip>
 
         <Chip

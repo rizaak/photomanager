@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: 'Frame — Private Photo Galleries for Photographers',
-  description: 'Share private photo galleries with clients. Let them select their favorites. Deliver final images effortlessly.',
+  description: 'Share private photo galleries with clients. Let them mark their favorites. Deliver final images effortlessly.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -231,6 +231,13 @@ export const GalleryRepository = {
     })
   },
 
+  async findByTitleForPhotographer(title: string, photographerId: string) {
+    return prisma.gallery.findFirst({
+      where:  { photographerId, title: { equals: title, mode: 'insensitive' } },
+      select: { id: true, title: true },
+    })
+  },
+
   async delete(galleryId: string): Promise<void> {
     await prisma.gallery.delete({ where: { id: galleryId } })
   },

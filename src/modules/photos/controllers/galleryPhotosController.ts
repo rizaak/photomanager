@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GalleryPhotosService } from '../services/GalleryPhotosService'
+import { GalleryService } from '../../galleries/services/GalleryService'
 import { getAuthenticatedPhotographer } from '../../auth/utils/getAuthenticatedPhotographer'
 import type { PhotoListParams } from '../repositories/PhotoRepository'
 
@@ -24,7 +25,7 @@ export async function handleGetGalleryPhotos(
       const listParams: PhotoListParams = {
         q:             sp.get('q')             ?? undefined,
         sectionId:     sp.get('sectionId')     ?? undefined,
-        clientSelected: sp.get('clientSelected') === 'true' || undefined,
+        hasFavorites:   sp.get('hasFavorites')   === 'true' || undefined,
         hasComments:   sp.get('hasComments')   === 'true' || undefined,
         hasFinal:      sp.get('hasFinal')      === 'true' || undefined,
         status:        rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined,
@@ -37,15 +38,20 @@ export async function handleGetGalleryPhotos(
       return NextResponse.json(data)
     }
 
-    // Full gallery load — filter hidden sections for unauthenticated (public) clients.
-    // Authenticated photographers get all sections (for cover photo selector, etc.).
-    let isPhotographer = false
-    try {
-      await getAuthenticatedPhotographer()
-      isPhotographer = true
-    } catch { /* public access */ }
+    // Full gallery load.
+    // Always publicOnly by default — the public client gallery must never see hidden sections.
+    // ?includeHidden=1 bypasses the filter only when the authenticated photographer owns the gallery
+    // (used by the photographer's preview and settings cover-photo selector).
+    let includeHidden = false
+    if (req.nextUrl.searchParams.get('includeHidden') === '1') {
+      try {
+        const photographerId = await getAuthenticatedPhotographer()
+        const gallery        = await GalleryService.getDetail(id, photographerId)
+        includeHidden        = !!gallery
+      } catch { /* not owner — stay filtered */ }
+    }
 
-    const data = await GalleryPhotosService.getForGallery(id, { publicOnly: !isPhotographer })
+    const data = await GalleryPhotosService.getForGallery(id, { publicOnly: !includeHidden })
     if (!data) {
       return NextResponse.json({ error: 'Gallery not found' }, { status: 404 })
     }

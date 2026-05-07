@@ -67,7 +67,8 @@ export const GalleryAccessService = {
     }
 
     // ── Gate 1: Password ─────────────────────────────────────────────────────
-    if (gallery.password) {
+    // Owner (photographer preview) bypasses password and registration gates.
+    if (!isOwner && gallery.password) {
       if (!opts.password) return { gate: 'password_required' }
       if (opts.password !== gallery.password) return { gate: 'wrong_password' }
     }
@@ -75,7 +76,7 @@ export const GalleryAccessService = {
     // ── Gate 2: Client registration ──────────────────────────────────────────
     let clientToken: string | undefined
 
-    if (gallery.requireClientInfo) {
+    if (!isOwner && gallery.requireClientInfo) {
       // Returning client — validate stored token
       if (opts.clientToken) {
         const client = await ClientService.validateToken(opts.clientToken, gallery.id)
@@ -119,11 +120,6 @@ export const GalleryAccessService = {
           clientEmail: registered.email,
         }).catch((err) => console.error('[GalleryAccessService] enqueue CLIENT_REGISTERED:', err))
       }
-    }
-
-    // Skip activity log in photographer preview mode
-    if (!isOwner) {
-      ActivityService.log(gallery.id, 'GALLERY_OPENED')
     }
 
     return {

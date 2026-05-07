@@ -16,7 +16,7 @@ export function GalleryHeader({ galleryId, galleryStatus, shareToken }: GalleryH
   const isShareable = galleryStatus === 'active'
 
   function copyShare() {
-    const url = `${window.location.origin}/gallery/${shareToken}`
+    const url = `${window.location.origin}/g/${shareToken}`
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2200)
@@ -40,7 +40,7 @@ export function GalleryHeader({ galleryId, galleryStatus, shareToken }: GalleryH
       <div className="flex items-center gap-1">
         {/* Preview — goes through a protected dashboard route, not the public URL directly */}
         <Link
-          href={`/dashboard/gallery/${galleryId}/preview`}
+          href={`/dashboard/galleries/${galleryId}/preview`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-sans text-stone-500 hover:text-stone-900 hover:bg-stone-50 transition-colors rounded-sm"

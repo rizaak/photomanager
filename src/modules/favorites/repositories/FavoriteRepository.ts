@@ -36,4 +36,18 @@ export const FavoriteRepository = {
     })
     return rows.map((r) => ({ photoId: r.photoId, count: r._count.photoId }))
   },
+
+  /** All clients who favorited a specific photo (photographer view). */
+  async findByPhoto(galleryId: string, photoId: string) {
+    const rows = await prisma.favorite.findMany({
+      where:   { galleryId, photoId },
+      select:  { createdAt: true, galleryClient: { select: { name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    })
+    return rows.map((r) => ({
+      clientName:  r.galleryClient.name,
+      clientEmail: r.galleryClient.email,
+      createdAt:   r.createdAt,
+    }))
+  },
 }

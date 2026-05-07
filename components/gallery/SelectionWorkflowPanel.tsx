@@ -184,7 +184,7 @@ function PhotoThumb({ photo, isSelected, galleryId, onToggle, onFinalUploaded }:
 
       <EditStatusBadge status={photo.editStatus} hasFinal={photo.hasFinal} />
 
-      {/* Selection check */}
+      {/* Liked indicator */}
       {isSelected && (
         <div
           className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
@@ -300,7 +300,7 @@ export function SelectionWorkflowPanel({ galleryId, initialData }: SelectionWork
       <div className="px-6 py-4 flex items-center justify-between border-b border-stone-100">
         <div>
           <p className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-0.5">
-            Client Selection
+            Client Favorites
           </p>
           <p className="text-sm font-sans text-stone-700">
             {data.clientName ?? 'Client'} · {data.photoCount} photo{data.photoCount !== 1 ? 's' : ''}

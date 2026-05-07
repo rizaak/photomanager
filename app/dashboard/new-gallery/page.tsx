@@ -41,7 +41,7 @@ export default function NewGalleryPage() {
       }
 
       const { id } = await res.json()
-      router.push(`/dashboard/gallery/${id}`)
+      router.push(`/dashboard/galleries/${id}`)
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {

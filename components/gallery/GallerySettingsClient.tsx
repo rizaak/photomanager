@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, Copy, Eye, EyeOff, Trash2, X } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -286,117 +286,14 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
 
   function renderPresentation() {
     return (
-      <Section title="Presentation" subtitle="How the gallery appears to clients.">
-        {/* Title */}
-        <div className="mb-5">
-          <FieldLabel>Title</FieldLabel>
-          <TextInput
-            value={settings.title}
-            onChange={(v) => setSettings((s) => ({ ...s, title: v }))}
-            placeholder="Gallery title"
-          />
-        </div>
-
-        {/* Subtitle */}
-        <div className="mb-5">
-          <FieldLabel>Subtitle</FieldLabel>
-          <textarea
-            value={settings.subtitle ?? ''}
-            onChange={(e) => setSettings((s) => ({ ...s, subtitle: e.target.value || null }))}
-            placeholder="Optional short description"
-            rows={2}
-            className="w-full max-w-sm bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors placeholder:text-stone-300 resize-none"
-          />
-        </div>
-
-        {/* Event date */}
-        <div className="mb-5">
-          <FieldLabel>Event Date</FieldLabel>
-          <div className="flex items-center gap-3">
-            <input
-              type="date"
-              value={settings.eventDate ?? ''}
-              onChange={(e) => setSettings((s) => ({ ...s, eventDate: e.target.value || null }))}
-              className="bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors"
-            />
-            {settings.eventDate && (
-              <button
-                onClick={() => setSettings((s) => ({ ...s, eventDate: null }))}
-                className="text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tags */}
-        <div className="mb-7">
-          <FieldLabel>Tags</FieldLabel>
-          <TagsInput
-            value={settings.tags}
-            onChange={(tags) => setSettings((s) => ({ ...s, tags }))}
-          />
-        </div>
-
-        <div className="border-t border-stone-100 pt-7 mb-7">
-          <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Cover</h3>
-
-          {/* Cover photo selector */}
-          <div className="mb-6">
-            <FieldLabel>Cover Photo</FieldLabel>
-            <CoverPhotoSelector
-              galleryId={galleryId}
-              coverPhotoId={settings.coverPhotoId}
-              onChange={(id) => setSettings((s) => ({ ...s, coverPhotoId: id }))}
-            />
-          </div>
-
-          {/* Cover style */}
-          <div className="mb-6">
-            <FieldLabel>Cover Style</FieldLabel>
-            <CoverStylePicker value={settings.coverStyle} onChange={(v) => setSettings((s) => ({ ...s, coverStyle: v as CoverStyle }))} />
-          </div>
-        </div>
-
-        <div className="border-t border-stone-100 pt-7 mb-7">
-          <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Style</h3>
-
-          {/* Gallery layout */}
-          <div className="mb-6">
-            <FieldLabel>Gallery Layout</FieldLabel>
-            <LayoutPicker value={settings.galleryLayout} onChange={(v) => setSettings((s) => ({ ...s, galleryLayout: v as GalleryLayout }))} />
-          </div>
-
-          {/* Color theme */}
-          <div className="mb-6">
-            <FieldLabel>Color Theme</FieldLabel>
-            <ColorThemePicker value={settings.colorTheme} onChange={(v) => setSettings((s) => ({ ...s, colorTheme: v as ColorTheme }))} />
-          </div>
-
-          {/* Typography */}
-          <div className="mb-6">
-            <FieldLabel>Typography</FieldLabel>
-            <TypographyPicker value={settings.typographyStyle} onChange={(v) => setSettings((s) => ({ ...s, typographyStyle: v as TypographyStyle }))} />
-          </div>
-        </div>
-
-        <SaveButton
-          saving={saving}
-          saved={saved}
-          onClick={() => patchSettings({
-            title:           settings.title,
-            subtitle:        settings.subtitle,
-            eventDate:       settings.eventDate,
-            coverPhotoId:    settings.coverPhotoId,
-            coverStyle:      settings.coverStyle,
-            galleryLayout:   settings.galleryLayout,
-            typographyStyle: settings.typographyStyle,
-            colorTheme:      settings.colorTheme,
-            tags:            settings.tags,
-          })}
-        />
-      </Section>
+      <PresentationTab
+        galleryId={galleryId}
+        settings={settings}
+        onSettingsChange={setSettings}
+        saving={saving}
+        saved={saved}
+        patchSettings={patchSettings}
+      />
     )
   }
 
@@ -675,7 +572,7 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
       </nav>
 
       {/* Content */}
-      <div className="flex-1 px-10 py-8 max-w-2xl">
+      <div className="flex-1 px-10 py-8">
         {tab === 'presentation' && renderPresentation()}
         {tab === 'access'       && renderAccess()}
         {tab === 'downloads'    && renderDownloads()}
@@ -705,7 +602,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle: strin
 
 function ShareTokenField({ token }: { token: string }) {
   const [copied, setCopied] = useState(false)
-  const url = typeof window !== 'undefined' ? `${window.location.origin}/gallery/${token}` : `/gallery/${token}`
+  const url = typeof window !== 'undefined' ? `${window.location.origin}/g/${token}` : `/g/${token}`
 
   function copy() {
     navigator.clipboard.writeText(url)
@@ -1073,20 +970,338 @@ function TypographyPicker({ value, onChange }: { value: string; onChange: (v: st
   )
 }
 
+// ── GalleryStylePreview ───────────────────────────────────────────────────────
+
+const PREVIEW_THEMES = {
+  dark:  { bg: '#1C1917', text: '#d6d3d1', accent: '#C9A96E', photo: '#2a2522' },
+  light: { bg: '#F7F5F2', text: '#292524', accent: '#78716c', photo: '#e7e5e4' },
+  warm:  { bg: '#181210', text: '#d6c5b0', accent: '#C9A96E', photo: '#221a15' },
+} as const
+
+function typoInlineStyle(style: TypographyStyle): React.CSSProperties {
+  if (style === 'serif')  return { fontFamily: 'Georgia, serif', letterSpacing: 0, fontWeight: 400 }
+  if (style === 'modern') return { fontFamily: 'inherit', letterSpacing: '0.2em', fontWeight: 300, textTransform: 'uppercase' }
+  return { fontFamily: 'inherit', letterSpacing: '0.15em', fontWeight: 700, textTransform: 'uppercase' }
+}
+
+function GalleryStylePreview({
+  settings,
+  photos,
+}: {
+  settings: Pick<Settings, 'title' | 'subtitle' | 'eventDate' | 'coverPhotoId' | 'coverStyle' | 'colorTheme' | 'typographyStyle' | 'galleryLayout'>
+  photos:   GalleryPhoto[]
+}) {
+  const theme    = PREVIEW_THEMES[settings.colorTheme] ?? PREVIEW_THEMES.light
+  const tStyle   = typoInlineStyle(settings.typographyStyle)
+  const coverImg = photos.find((p) => p.id === settings.coverPhotoId) ?? photos[0] ?? null
+  const titleTxt = settings.title || 'Gallery'
+  const subTxt   = settings.subtitle || settings.eventDate || null
+
+  const gridItems = [
+    ...photos.slice(0, 6),
+    ...Array.from({ length: Math.max(0, 6 - Math.min(photos.length, 6)) }, (_, i) => ({
+      id: `ph${i}`, thumbnailUrl: null as string | null, filename: '',
+    })),
+  ]
+
+  const editorialFeat = gridItems[0]
+  const editorialRest = gridItems.slice(1, 3)
+  const masonryCols   = [
+    gridItems.filter((_, i) => i % 3 === 0),
+    gridItems.filter((_, i) => i % 3 === 1),
+    gridItems.filter((_, i) => i % 3 === 2),
+  ]
+
+  const fillStyle: React.CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
+
+  return (
+    <div style={{ backgroundColor: theme.bg, width: '100%', aspectRatio: '3 / 4', overflow: 'hidden', userSelect: 'none', pointerEvents: 'none' }}>
+
+      {/* Cover */}
+      <div style={{ height: '40%', overflow: 'hidden', position: 'relative' }}>
+
+        {settings.coverStyle === 'fullscreen' && (
+          <>
+            {coverImg?.thumbnailUrl
+              ? <img src={coverImg.thumbnailUrl} alt="" draggable={false} style={fillStyle} />
+              : <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.text, opacity: 0.12 }} />
+            }
+            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '55%', background: `linear-gradient(to top, ${theme.bg}e0 0%, transparent 100%)` }} />
+            <div style={{ position: 'absolute', bottom: 6, left: 8, right: 8 }}>
+              <div style={{ ...tStyle, color: theme.text, fontSize: 7, lineHeight: 1.2, marginBottom: 2 }}>{titleTxt}</div>
+              {subTxt && <div style={{ color: theme.text, fontSize: 5.5, opacity: 0.6, lineHeight: 1.3 }}>{subTxt}</div>}
+            </div>
+          </>
+        )}
+
+        {settings.coverStyle === 'split' && (
+          <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+            <div style={{ width: '46%', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 8px', backgroundColor: theme.bg }}>
+              <div style={{ ...tStyle, color: theme.text, fontSize: 7, lineHeight: 1.2, marginBottom: 2 }}>{titleTxt}</div>
+              {subTxt && <div style={{ color: theme.text, fontSize: 5.5, opacity: 0.6, lineHeight: 1.3 }}>{subTxt}</div>}
+            </div>
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+              {coverImg?.thumbnailUrl
+                ? <img src={coverImg.thumbnailUrl} alt="" draggable={false} style={fillStyle} />
+                : <div style={{ position: 'absolute', inset: 0, backgroundColor: theme.text, opacity: 0.15 }} />
+              }
+            </div>
+          </div>
+        )}
+
+        {settings.coverStyle === 'minimal' && (
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
+            <div style={{ ...tStyle, color: theme.text, fontSize: 7, lineHeight: 1.2 }}>{titleTxt}</div>
+            {subTxt && <div style={{ color: theme.text, fontSize: 5.5, opacity: 0.6, lineHeight: 1.3, marginTop: 3 }}>{subTxt}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Photo grid */}
+      <div style={{ height: '54%', padding: 5 }}>
+
+        {settings.galleryLayout === 'editorial' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
+            <div style={{ flex: '0 0 55%', position: 'relative', overflow: 'hidden', backgroundColor: theme.photo }}>
+              {editorialFeat?.thumbnailUrl && <img src={editorialFeat.thumbnailUrl} alt="" draggable={false} style={fillStyle} />}
+            </div>
+            <div style={{ flex: 1, display: 'flex', gap: 2 }}>
+              {editorialRest.map((p) => (
+                <div key={p.id} style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: theme.photo, opacity: p.thumbnailUrl ? 1 : 0.4 }}>
+                  {p.thumbnailUrl && <img src={p.thumbnailUrl} alt="" draggable={false} style={fillStyle} />}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {settings.galleryLayout === 'masonry' && (
+          <div style={{ display: 'flex', gap: 2, height: '100%' }}>
+            {masonryCols.map((col, ci) => (
+              <div key={ci} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {col.map((p) => (
+                  <div key={p.id} style={{ flex: 1, position: 'relative', overflow: 'hidden', backgroundColor: theme.photo, opacity: p.thumbnailUrl ? 1 : 0.4 }}>
+                    {p.thumbnailUrl && <img src={p.thumbnailUrl} alt="" draggable={false} style={fillStyle} />}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {settings.galleryLayout === 'uniform' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, height: '100%' }}>
+            {gridItems.slice(0, 6).map((p) => (
+              <div key={p.id} style={{ position: 'relative', overflow: 'hidden', backgroundColor: theme.photo, opacity: p.thumbnailUrl ? 1 : 0.35 }}>
+                {p.thumbnailUrl && <img src={p.thumbnailUrl} alt="" draggable={false} style={fillStyle} />}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer accent */}
+      <div style={{ height: '6%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 16, height: 1, backgroundColor: theme.accent, opacity: 0.6 }} />
+      </div>
+    </div>
+  )
+}
+
+// ── PresentationTab ───────────────────────────────────────────────────────────
+
+function PresentationTab({
+  galleryId,
+  settings,
+  onSettingsChange,
+  saving,
+  saved,
+  patchSettings,
+}: {
+  galleryId:        string
+  settings:         Settings
+  onSettingsChange: React.Dispatch<React.SetStateAction<Settings>>
+  saving:           boolean
+  saved:            boolean
+  patchSettings:    (patch: SettingsPatch) => Promise<void>
+}) {
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
+
+  useEffect(() => {
+    fetch(`/api/galleries/${galleryId}/photos?includeHidden=1`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const all: GalleryPhoto[] = [
+          ...(data.sections ?? []).flatMap((s: any) => s.photos),
+          ...(data.unsectioned ?? []),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ].map((p: any) => ({ id: p.id, thumbnailUrl: p.thumbnailUrl ?? null, filename: p.filename }))
+        setPhotos(all)
+      })
+      .catch(() => {})
+  }, [galleryId])
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-8 xl:gap-14">
+
+      {/* Settings form — below preview on mobile, fixed-width left column on xl */}
+      <div className="order-2 xl:order-1 xl:w-[400px] xl:shrink-0">
+        <Section title="Presentation" subtitle="How the gallery appears to clients.">
+          <div className="mb-5">
+            <FieldLabel>Title</FieldLabel>
+            <TextInput
+              value={settings.title}
+              onChange={(v) => onSettingsChange((s) => ({ ...s, title: v }))}
+              placeholder="Gallery title"
+            />
+          </div>
+
+          <div className="mb-5">
+            <FieldLabel>Subtitle</FieldLabel>
+            <textarea
+              value={settings.subtitle ?? ''}
+              onChange={(e) => onSettingsChange((s) => ({ ...s, subtitle: e.target.value || null }))}
+              placeholder="Optional short description"
+              rows={2}
+              className="w-full max-w-sm bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors placeholder:text-stone-300 resize-none"
+            />
+          </div>
+
+          <div className="mb-5">
+            <FieldLabel>Event Date</FieldLabel>
+            <div className="flex items-center gap-3">
+              <input
+                type="date"
+                value={settings.eventDate ?? ''}
+                onChange={(e) => onSettingsChange((s) => ({ ...s, eventDate: e.target.value || null }))}
+                className="bg-white border border-stone-200 px-4 py-2.5 text-sm font-sans text-stone-700 focus:outline-none focus:border-stone-400 transition-colors"
+              />
+              {settings.eventDate && (
+                <button
+                  onClick={() => onSettingsChange((s) => ({ ...s, eventDate: null }))}
+                  className="text-xs font-sans text-stone-400 hover:text-stone-700 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-7">
+            <FieldLabel>Tags</FieldLabel>
+            <TagsInput
+              value={settings.tags}
+              onChange={(tags) => onSettingsChange((s) => ({ ...s, tags }))}
+            />
+          </div>
+
+          <div className="border-t border-stone-100 pt-7 mb-7">
+            <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Cover</h3>
+
+            <div className="mb-6">
+              <FieldLabel>Cover Photo</FieldLabel>
+              <CoverPhotoSelector
+                galleryId={galleryId}
+                coverPhotoId={settings.coverPhotoId}
+                onChange={(id) => onSettingsChange((s) => ({ ...s, coverPhotoId: id }))}
+                preloadedPhotos={photos}
+              />
+            </div>
+
+            <div className="mb-6">
+              <FieldLabel>Cover Style</FieldLabel>
+              <CoverStylePicker
+                value={settings.coverStyle}
+                onChange={(v) => onSettingsChange((s) => ({ ...s, coverStyle: v as CoverStyle }))}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-stone-100 pt-7 mb-7">
+            <h3 className="text-xs font-sans text-stone-400 uppercase tracking-widest mb-5">Style</h3>
+
+            <div className="mb-6">
+              <FieldLabel>Gallery Layout</FieldLabel>
+              <LayoutPicker
+                value={settings.galleryLayout}
+                onChange={(v) => onSettingsChange((s) => ({ ...s, galleryLayout: v as GalleryLayout }))}
+              />
+            </div>
+
+            <div className="mb-6">
+              <FieldLabel>Color Theme</FieldLabel>
+              <ColorThemePicker
+                value={settings.colorTheme}
+                onChange={(v) => onSettingsChange((s) => ({ ...s, colorTheme: v as ColorTheme }))}
+              />
+            </div>
+
+            <div className="mb-6">
+              <FieldLabel>Typography</FieldLabel>
+              <TypographyPicker
+                value={settings.typographyStyle}
+                onChange={(v) => onSettingsChange((s) => ({ ...s, typographyStyle: v as TypographyStyle }))}
+              />
+            </div>
+          </div>
+
+          <SaveButton
+            saving={saving}
+            saved={saved}
+            onClick={() =>
+              patchSettings({
+                title:           settings.title,
+                subtitle:        settings.subtitle,
+                eventDate:       settings.eventDate,
+                coverPhotoId:    settings.coverPhotoId,
+                coverStyle:      settings.coverStyle,
+                galleryLayout:   settings.galleryLayout,
+                typographyStyle: settings.typographyStyle,
+                colorTheme:      settings.colorTheme,
+                tags:            settings.tags,
+              })
+            }
+          />
+        </Section>
+      </div>
+
+      {/* Style preview — centered above form on mobile/tablet, sticky flex-1 right column on xl */}
+      <div className="order-1 xl:order-2 xl:flex-1 xl:self-start xl:sticky xl:top-12">
+        <p className="text-[10px] font-sans text-stone-400 uppercase tracking-widest mb-2.5 text-center">
+          Style preview
+        </p>
+        {/* Scales: 200px mobile → 280px sm → 340px md → fills column on xl (capped at 460px) */}
+        <div className="mx-auto w-full max-w-[200px] sm:max-w-[280px] md:max-w-[340px] xl:max-w-[460px]">
+          <GalleryStylePreview settings={settings} photos={photos} />
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 // ── CoverPhotoSelector ────────────────────────────────────────────────────────
 
 function CoverPhotoSelector({
   galleryId,
   coverPhotoId,
   onChange,
+  preloadedPhotos,
 }: {
-  galleryId:    string
-  coverPhotoId: string | null
-  onChange:     (id: string | null) => void
+  galleryId:         string
+  coverPhotoId:      string | null
+  onChange:          (id: string | null) => void
+  preloadedPhotos?:  GalleryPhoto[]
 }) {
-  const [open,   setOpen]   = useState(false)
-  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
+  const [open,    setOpen]    = useState(false)
+  const [photos,  setPhotos]  = useState<GalleryPhoto[]>(preloadedPhotos ?? [])
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (preloadedPhotos && preloadedPhotos.length > 0) setPhotos(preloadedPhotos)
+  }, [preloadedPhotos])
 
   async function loadPhotos() {
     if (photos.length > 0) { setOpen(true); return }
@@ -1315,7 +1530,7 @@ function PresetsPanel({
                 )}
                 <p className="text-xs font-sans text-stone-400 mt-0.5">
                   {[
-                    preset.allowSelection    && 'selection',
+                    preset.allowSelection    && 'picks',
                     preset.allowFavorites    && 'favorites',
                     preset.downloadEnabled   && DOWNLOAD_TYPE_LABELS[preset.downloadType].toLowerCase(),
                     preset.watermarkEnabled  && 'watermark',

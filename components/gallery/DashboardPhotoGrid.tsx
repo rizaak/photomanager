@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Plus, ChevronDown, ChevronLeft, ChevronRight, Check, Trash2, Loader2, AlertCircle,
   Search, X, CheckCircle2, MessageCircle, Pencil,
-  MoreHorizontal, Droplets, GripVertical,
+  Heart, Droplets, GripVertical,
 } from 'lucide-react'
 import { PhotoContextMenu, type WatermarkPresetOption } from './PhotoContextMenu'
 import { DeleteSectionDialog } from './DeleteSectionDialog'
@@ -28,8 +29,8 @@ export interface GridPhoto {
   sectionId:                string | null
   status:                   'ready' | 'processing' | 'failed'
   editStatus?:              string
-  isClientSelected?:        boolean
   hasComments?:             boolean
+  hasFavorites?:            boolean
   hasFinal?:                boolean
   labels?:                  string[]
   appliedWatermarkPresetId?: string | null
@@ -40,7 +41,7 @@ interface PhotoFilters {
   status:         string
   sectionId:      string
   sort:           string
-  clientSelected: boolean
+  hasFavorites:   boolean
   hasComments:    boolean
   hasFinal:       boolean
   labels:         string[]
@@ -48,13 +49,13 @@ interface PhotoFilters {
 
 const DEFAULT_FILTERS: PhotoFilters = {
   q: '', status: '', sectionId: '', sort: '',
-  clientSelected: false, hasComments: false, hasFinal: false, labels: [],
+  hasFavorites: false, hasComments: false, hasFinal: false, labels: [],
 }
 
 const STATUS_OPTIONS = [
   { value: 'ready',        label: 'Ready'        },
   { value: 'processing',   label: 'Processing'   },
-  { value: 'selected',     label: 'Selected'     },
+  { value: 'selected',     label: 'Liked'        },
   { value: 'editing',      label: 'Editing'      },
   { value: 'final_ready',  label: 'Final ready'  },
   { value: 'failed',       label: 'Failed'       },
@@ -65,7 +66,7 @@ const SORT_OPTIONS = [
   { value: 'date_desc',      label: 'Newest first'   },
   { value: 'date_asc',       label: 'Oldest first'   },
   { value: 'filename',       label: 'Filename A–Z'   },
-  { value: 'selected_first', label: 'Selected first' },
+  { value: 'selected_first', label: 'Liked first'    },
   { value: 'final_first',    label: 'Final first'    },
 ]
 
@@ -98,7 +99,7 @@ function PhotoFilterBar({ filters, sections, allLabels, total, isLoading, onChan
 
   const hasFilters = !!(
     filters.q || filters.status || filters.sectionId || filters.sort ||
-    filters.clientSelected || filters.hasComments || filters.hasFinal || filters.labels.length
+    filters.hasFavorites || filters.hasComments || filters.hasFinal || filters.labels.length
   )
 
   const clearAll = () => {
@@ -184,8 +185,8 @@ function PhotoFilterBar({ filters, sections, allLabels, total, isLoading, onChan
           </div>
         )}
 
-        <FilterChip active={filters.clientSelected} onClick={() => set({ clientSelected: !filters.clientSelected })}>
-          Client selected
+        <FilterChip active={filters.hasFavorites} onClick={() => set({ hasFavorites: !filters.hasFavorites })}>
+          Client favorites
         </FilterChip>
         <FilterChip active={filters.hasComments} onClick={() => set({ hasComments: !filters.hasComments })}>
           Has comments
@@ -467,7 +468,7 @@ interface PhotoThumbProps {
   onAssign:          (id: string, sectionId: string | null) => void
   dropdownAnchor:    (el: HTMLDivElement | null, id: string) => void
   onContextMenu:     (e: React.MouseEvent, photo: GridPhoto) => void
-  onMoreActions:     (e: React.MouseEvent, photo: GridPhoto) => void
+  onViewFeedback:    () => void
   photoRef:          (el: HTMLDivElement | null) => void
   isClickSuppressed: () => boolean
 }
@@ -475,7 +476,7 @@ interface PhotoThumbProps {
 function PhotoThumb({
   photo, sections, isSelected,
   openDropdown, watermarkQueued, onToggleSelect, onOpenModal, onDropdownToggle, onAssign, dropdownAnchor,
-  onContextMenu, onMoreActions, photoRef, isClickSuppressed,
+  onContextMenu, onViewFeedback, photoRef, isClickSuppressed,
 }: PhotoThumbProps) {
   const ar             = photo.height / photo.width
   const pb             = `${Math.min(Math.max(ar * 100, 66), 150)}%`
@@ -562,40 +563,32 @@ function PhotoThumb({
               </span>
             )}
 
-            {/* Status dots — show on hover */}
-            <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {photo.isClientSelected && (
-                <span title="Client selected" className="w-4 h-4 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
-                  <Check size={8} strokeWidth={2.5} className="text-amber-300" />
+            {/* Status dots — always visible */}
+            <div className="flex flex-col gap-1">
+              {photo.hasFavorites && (
+                <span title="Client favorited" className="w-4 h-4 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
+                  <Heart size={8} strokeWidth={0} fill="#f87171" className="text-red-400" />
                 </span>
               )}
               {photo.hasComments && (
-                <span title="Has comments" className="w-4 h-4 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                <button
+                  title="View client feedback"
+                  onClick={(e) => { e.stopPropagation(); onViewFeedback() }}
+                  className="w-4 h-4 rounded-full bg-black/60 backdrop-blur flex items-center justify-center hover:bg-black/80 transition-colors"
+                >
                   <MessageCircle size={8} strokeWidth={2} className="text-white" />
-                </span>
+                </button>
               )}
               {photo.hasFinal && (
-                <span title="Final ready" className="w-4 h-4 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                <span title="Final ready" className="w-4 h-4 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
                   <CheckCircle2 size={8} strokeWidth={2} className="text-emerald-400" />
                 </span>
               )}
               {photo.editStatus === 'EDITING' && !photo.hasFinal && (
-                <span title="In editing" className="w-4 h-4 rounded-full bg-black/50 backdrop-blur flex items-center justify-center">
+                <span title="In editing" className="w-4 h-4 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
                   <Pencil size={7} strokeWidth={2} className="text-sky-300" />
                 </span>
               )}
-            </div>
-
-            {/* More actions button */}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-              <button
-                onClick={(e) => { e.stopPropagation(); onMoreActions(e, photo) }}
-                aria-label="More actions"
-                title="More actions"
-                className="w-6 h-6 rounded-full bg-black/50 backdrop-blur flex items-center justify-center text-white hover:bg-black/70 transition-colors"
-              >
-                <MoreHorizontal size={10} strokeWidth={2} />
-              </button>
             </div>
           </div>
         )}
@@ -734,6 +727,7 @@ export function DashboardPhotoGrid({
   initialHasMore, initialTotal, initialAllLabels,
   initialWatermarkPresets = [],
 }: DashboardPhotoGridProps) {
+  const router = useRouter()
   const [sections,         setSections]         = useState(initialSections)
   const [photos,           setPhotos]           = useState(initialPhotos)
   const [filters,          setFilters]          = useState<PhotoFilters>(DEFAULT_FILTERS)
@@ -845,7 +839,7 @@ export function DashboardPhotoGrid({
     if (f.status)         sp.set('status', f.status)
     if (f.sectionId)      sp.set('sectionId', f.sectionId)
     if (f.sort)           sp.set('sort', f.sort)
-    if (f.clientSelected) sp.set('clientSelected', 'true')
+    if (f.hasFavorites)   sp.set('hasFavorites', 'true')
     if (f.hasComments)    sp.set('hasComments', 'true')
     if (f.hasFinal)       sp.set('hasFinal', 'true')
     if (f.labels.length)  sp.set('labels', f.labels.join(','))
@@ -1204,7 +1198,7 @@ export function DashboardPhotoGrid({
 
   const isFiltered = !!(
     filters.q || filters.status || filters.sectionId || filters.sort ||
-    filters.clientSelected || filters.hasComments || filters.hasFinal || filters.labels.length
+    filters.hasFavorites || filters.hasComments || filters.hasFinal || filters.labels.length
   )
 
   const grouped      = sections.map((s) => ({ ...s, photos: photos.filter((p) => p.sectionId === s.id) }))
@@ -1224,7 +1218,7 @@ export function DashboardPhotoGrid({
     onAssign:          handleAssign,
     dropdownAnchor:    registerDropdownAnchor,
     onContextMenu:     openContextMenu,
-    onMoreActions:     openContextMenu,
+    onViewFeedback:    () => router.push(`/dashboard/galleries/${galleryId}/feedback`),
     isClickSuppressed: () => suppressClick.current,
   }
 
@@ -1496,6 +1490,7 @@ export function DashboardPhotoGrid({
           onUpdated={handlePhotoUpdated}
           onDeleted={handlePhotoDeleted}
           onCoverSet={() => setContextMenu(null)}
+          onViewFeedback={() => { setContextMenu(null); router.push(`/dashboard/galleries/${galleryId}/feedback`) }}
         />
       )}
 
@@ -1557,3 +1552,4 @@ export function DashboardPhotoGrid({
     </div>
   )
 }
+

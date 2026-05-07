@@ -8,7 +8,7 @@ export function ShareButton({ shareToken }: { shareToken: string }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {
-    const url = `${window.location.origin}/gallery/${shareToken}`
+    const url = `${window.location.origin}/g/${shareToken}`
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2200)
