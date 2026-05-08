@@ -32,6 +32,16 @@ export async function handleLightroomUpload(req: NextRequest): Promise<NextRespo
   const fileSize   = fileEntry.size
   const fileBuffer = Buffer.from(await fileEntry.arrayBuffer())
 
+  console.log('[lightroom-upload] incoming request', {
+    headers: {
+      'content-type': req.headers.get('content-type'),
+      'user-agent':   req.headers.get('user-agent'),
+      'x-api-key':    apiKey ? `${apiKey.slice(0, 6)}…` : null,
+    },
+    fields: { filename, origFilename, galleryId, galleryName, createGallery },
+    file:   { mimeType, fileSize, name: fileEntry.name },
+  })
+
   try {
     const result = await LightroomUploadService.upload({
       apiKeyPlaintext:  apiKey,

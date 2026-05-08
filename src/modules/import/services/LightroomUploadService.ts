@@ -75,10 +75,16 @@ export const LightroomUploadService = {
       // Fall back to key's default gallery
       resolvedGalleryId = defaultGalleryId
     } else {
-      throw Object.assign(
-        new Error('gallery_id or gallery_name is required when the key has no default gallery'),
-        { status: 400 },
-      )
+      // Auto-create or reuse a dated gallery — no gallery context required from Lightroom
+      const today = new Date().toISOString().slice(0, 10)
+      const autoName = `Lightroom Import — ${today}`
+      const existing = await GalleryRepository.findByTitleForPhotographer(autoName, photographerId)
+      if (existing) {
+        resolvedGalleryId = existing.id
+      } else {
+        const created = await GalleryRepository.create(photographerId, { title: autoName, clientName: '' })
+        resolvedGalleryId = created.id
+      }
     }
 
     // ── 3. Validate file ──────────────────────────────────────────────────────
