@@ -74,14 +74,17 @@ export async function handleUpdateSection(
 }
 
 export async function handleDeleteSection(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; sectionId: string }> },
 ): Promise<NextResponse> {
   let photographerId: string
   try { photographerId = await auth() } catch { return err401() }
   const { id, sectionId } = await params
+  const body = await req.json().catch(() => ({}))
+  const mode: 'keep_photos' | 'delete_photos' =
+    body?.mode === 'delete_photos' ? 'delete_photos' : 'keep_photos'
   try {
-    await GallerySectionService.deleteSection(sectionId, id, photographerId)
+    await GallerySectionService.deleteSection(sectionId, id, photographerId, mode)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const status = (err as { status?: number }).status ?? 500

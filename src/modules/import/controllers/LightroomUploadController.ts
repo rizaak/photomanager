@@ -19,7 +19,6 @@ export async function handleLightroomUpload(req: NextRequest): Promise<NextRespo
   const origFilename   = String(formData.get('original_filename') ?? '').trim()
   const galleryId      = String(formData.get('gallery_id') ?? '').trim() || undefined
   const galleryName    = String(formData.get('gallery_name') ?? '').trim() || undefined
-  const createGallery  = formData.get('create_gallery') === 'true'
 
   if (!(fileEntry instanceof File)) {
     return NextResponse.json({ success: false, error: 'file field is required' }, { status: 400 })
@@ -38,7 +37,7 @@ export async function handleLightroomUpload(req: NextRequest): Promise<NextRespo
       'user-agent':   req.headers.get('user-agent'),
       'x-api-key':    apiKey ? `${apiKey.slice(0, 6)}…` : null,
     },
-    fields: { filename, origFilename, galleryId, galleryName, createGallery },
+    fields: { filename, origFilename, galleryId, galleryName },
     file:   { mimeType, fileSize, name: fileEntry.name },
   })
 
@@ -52,7 +51,6 @@ export async function handleLightroomUpload(req: NextRequest): Promise<NextRespo
       fileSize,
       galleryId,
       galleryName,
-      createGallery,
     })
 
     return NextResponse.json(

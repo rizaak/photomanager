@@ -53,8 +53,9 @@ function uploadFileXHR(
 type UploadEntry = UploadFile & { doneAt?: number }
 
 export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
-  const [isDragging, setIsDragging] = useState(false)
-  const [files, setFiles]           = useState<UploadEntry[]>([])
+  const [isDragging,    setIsDragging]    = useState(false)
+  const [files,         setFiles]         = useState<UploadEntry[]>([])
+  const [noGalleryWarn, setNoGalleryWarn] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const timers   = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -96,7 +97,8 @@ export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
   const startUpload = useCallback(
     async (selected: FileList | File[]) => {
       if (!galleryId || galleryId === 'new') {
-        alert('Please select a gallery before uploading.')
+        setNoGalleryWarn(true)
+        setTimeout(() => setNoGalleryWarn(false), 4000)
         return
       }
 
@@ -180,9 +182,13 @@ export function UploadZone({ galleryId, onComplete }: UploadZoneProps) {
           />
           <p className="font-serif text-xl text-stone-700 mb-2">Drop photos here</p>
           <p className="text-sm text-stone-400 font-sans">or click to browse your files</p>
-          <p className="text-xs text-stone-300 font-sans mt-4">
-            JPG, PNG, HEIC, WEBP &nbsp;·&nbsp; Max 50 MB per file
-          </p>
+          {noGalleryWarn ? (
+            <p className="text-xs font-sans text-amber-600 mt-4 font-medium">Select a gallery before uploading</p>
+          ) : (
+            <p className="text-xs text-stone-300 font-sans mt-4">
+              JPG, PNG, HEIC, WEBP &nbsp;·&nbsp; Max 50 MB per file
+            </p>
+          )}
         </div>
       </div>
 

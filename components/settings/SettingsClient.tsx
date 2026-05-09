@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Trash2, Star, UploadCloud, Loader2, Pencil, Copy, Check, KeyRound, X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -229,11 +230,13 @@ function DangerTab() {
 // ── Watermarks tab ────────────────────────────────────────────────────────────
 
 function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }) {
-  const [presets,    setPresets]    = useState(initialPresets)
-  const [formOpen,   setFormOpen]   = useState(false)
-  const [editingId,  setEditingId]  = useState<string | null>(null)
-  const [uploading,  setUploading]  = useState(false)
-  const [saving,     setSaving]     = useState(false)
+  const [presets,       setPresets]       = useState(initialPresets)
+  const [formOpen,      setFormOpen]      = useState(false)
+  const [editingId,     setEditingId]     = useState<string | null>(null)
+  const [uploading,     setUploading]     = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [formError,     setFormError]     = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<WatermarkPreset | null>(null)
   const fileRef      = useRef<HTMLInputElement>(null)
   const origImageKey = useRef('')
 
@@ -276,13 +279,14 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setFormError(null)
     try {
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/watermarks/image', { method: 'POST', body: form })
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error ?? 'Upload failed')
+        setFormError(data.error ?? 'Upload failed')
         return
       }
       const { key } = await res.json()
@@ -302,6 +306,7 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
   async function handleSave() {
     if (!name.trim() || !imageKey) return
     setSaving(true)
+    setFormError(null)
     try {
       if (editingId) {
         const body: Record<string, unknown> = { name: name.trim(), position, sizePct, opacity, isDefault }
@@ -313,7 +318,7 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
         })
         if (!res.ok) {
           const data = await res.json()
-          alert(data.error ?? 'Failed to update preset')
+          setFormError(data.error ?? 'Failed to update preset')
           return
         }
       } else {
@@ -324,7 +329,7 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
         })
         if (!res.ok) {
           const data = await res.json()
-          alert(data.error ?? 'Failed to create preset')
+          setFormError(data.error ?? 'Failed to create preset')
           return
         }
       }
@@ -345,9 +350,14 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
   }
 
   async function handleDelete(preset: WatermarkPreset) {
-    if (!confirm(`Delete "${preset.name}"? This cannot be undone.`)) return
-    const res = await fetch(`/api/watermarks/${preset.id}`, { method: 'DELETE' })
-    if (res.ok || res.status === 204) setPresets((prev) => prev.filter((p) => p.id !== preset.id))
+    setConfirmDelete(preset)
+  }
+
+  async function confirmDeletePreset() {
+    if (!confirmDelete) return
+    const res = await fetch(`/api/watermarks/${confirmDelete.id}`, { method: 'DELETE' })
+    if (res.ok || res.status === 204) setPresets((prev) => prev.filter((p) => p.id !== confirmDelete.id))
+    setConfirmDelete(null)
   }
 
   const isEditing = !!editingId
@@ -485,6 +495,9 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
                   </p>
                 )}
 
+                {formError && (
+                  <p className="text-xs font-sans text-red-500 mb-3">{formError}</p>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={handleSave}
@@ -576,6 +589,16 @@ function WatermarksTab({ initialPresets }: { initialPresets: WatermarkPreset[] }
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Delete "${confirmDelete?.name}"?`}
+        description="This watermark preset will be permanently removed. This cannot be undone."
+        confirmLabel="Delete preset"
+        danger
+        onConfirm={confirmDeletePreset}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }
@@ -650,16 +673,22 @@ function fmtDate(iso: string) {
 }
 
 function ApiKeysTab({ initialKeys }: { initialKeys: ApiKeyRecord[] }) {
-  const [keys,       setKeys]       = useState(initialKeys)
-  const [showCreate, setShowCreate] = useState(false)
-  const [revoking,   setRevoking]   = useState<string | null>(null)
+  const [keys,          setKeys]          = useState(initialKeys)
+  const [showCreate,    setShowCreate]    = useState(false)
+  const [revoking,      setRevoking]      = useState<string | null>(null)
+  const [confirmRevoke, setConfirmRevoke] = useState<ApiKeyRecord | null>(null)
 
   async function handleRevoke(key: ApiKeyRecord) {
-    if (!confirm(`Revoke "${key.label || 'Unnamed key'}"? Any plugin using it will stop working immediately.`)) return
-    setRevoking(key.id)
+    setConfirmRevoke(key)
+  }
+
+  async function doRevoke() {
+    if (!confirmRevoke) return
+    setRevoking(confirmRevoke.id)
+    setConfirmRevoke(null)
     try {
-      const res = await fetch(`/api/import/keys/${key.id}`, { method: 'DELETE' })
-      if (res.ok) setKeys((prev) => prev.filter((k) => k.id !== key.id))
+      const res = await fetch(`/api/import/keys/${confirmRevoke.id}`, { method: 'DELETE' })
+      if (res.ok) setKeys((prev) => prev.filter((k) => k.id !== confirmRevoke.id))
     } finally {
       setRevoking(null)
     }
@@ -727,6 +756,16 @@ function ApiKeysTab({ initialKeys }: { initialKeys: ApiKeyRecord[] }) {
           onCreated={(newKey) => setKeys((prev) => [...prev, newKey])}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmRevoke}
+        title={`Revoke "${confirmRevoke?.label || 'Unnamed key'}"?`}
+        description="Any plugin or integration using this key will stop working immediately. This cannot be undone."
+        confirmLabel="Revoke key"
+        danger
+        onConfirm={doRevoke}
+        onCancel={() => setConfirmRevoke(null)}
+      />
     </div>
   )
 }

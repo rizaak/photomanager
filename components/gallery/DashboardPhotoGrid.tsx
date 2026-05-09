@@ -10,6 +10,7 @@ import {
 import { PhotoContextMenu, type WatermarkPresetOption } from './PhotoContextMenu'
 import { DeleteSectionDialog } from './DeleteSectionDialog'
 import { SectionDialog, type SectionRecord } from './SectionDialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -795,9 +796,10 @@ export function DashboardPhotoGrid({
   }
 
   // ── Reorder state ─────────────────────────────────────────────────────────
-  const [deletingSection,  setDeletingSection]  = useState<{ id: string; title: string } | null>(null)
-  const [reorderMode,      setReorderMode]      = useState(false)
-  const [loadingAll,       setLoadingAll]       = useState(false)
+  const [deletingSection,       setDeletingSection]       = useState<{ id: string; title: string } | null>(null)
+  const [bulkDeleteConfirm,     setBulkDeleteConfirm]     = useState(false)
+  const [reorderMode,           setReorderMode]           = useState(false)
+  const [loadingAll,            setLoadingAll]            = useState(false)
   const [dragPhotoId,      setDragPhotoId]      = useState<string | null>(null)
   const [dragOverPhotoId,  setDragOverPhotoId]  = useState<string | null>(null)
   const [dragInsertBefore, setDragInsertBefore] = useState(true)
@@ -1093,7 +1095,11 @@ export function DashboardPhotoGrid({
   }
 
   async function handleBulkDelete() {
-    if (!confirm(`Delete ${selectedIds.size} photo${selectedIds.size !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    setBulkDeleteConfirm(true)
+  }
+
+  async function doBulkDelete() {
+    setBulkDeleteConfirm(false)
     const ids = [...selectedIds]
     clearSelection()
     setPhotos((prev) => prev.filter((p) => !new Set(ids).has(p.id)))
@@ -1528,9 +1534,17 @@ export function DashboardPhotoGrid({
           section={deletingSection}
           galleryId={galleryId}
           onClose={() => setDeletingSection(null)}
-          onDeleted={(id) => {
+          onDeleted={(id, mode) => {
             setSections((prev) => prev.filter((s) => s.id !== id))
-            setPhotos((prev) => prev.map((p) => p.sectionId === id ? { ...p, sectionId: null } : p))
+            if (mode === 'delete_photos') {
+              setPhotos((prev) => {
+                const count = prev.filter((p) => p.sectionId === id).length
+                setTotal((t) => Math.max(0, t - count))
+                return prev.filter((p) => p.sectionId !== id)
+              })
+            } else {
+              setPhotos((prev) => prev.map((p) => p.sectionId === id ? { ...p, sectionId: null } : p))
+            }
           }}
         />
       )}
@@ -1549,6 +1563,16 @@ export function DashboardPhotoGrid({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={bulkDeleteConfirm}
+        title={`Delete ${selectedIds.size} photo${selectedIds.size !== 1 ? 's' : ''}?`}
+        description="Selected photos will be permanently removed. This cannot be undone."
+        confirmLabel="Delete photos"
+        danger
+        onConfirm={doBulkDelete}
+        onCancel={() => setBulkDeleteConfirm(false)}
+      />
     </div>
   )
 }

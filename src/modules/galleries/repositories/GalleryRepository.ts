@@ -238,6 +238,32 @@ export const GalleryRepository = {
     })
   },
 
+  async findAllStorageKeys(galleryId: string): Promise<string[]> {
+    const [photos, downloads] = await Promise.all([
+      prisma.photo.findMany({
+        where:  { galleryId },
+        select: { originalKey: true, previewKey: true, thumbnailKey: true, watermarkedKey: true, finalKey: true },
+      }),
+      prisma.download.findMany({
+        where:  { galleryId },
+        select: { zipKey: true },
+      }),
+    ])
+
+    const keys: string[] = []
+    for (const p of photos) {
+      keys.push(p.originalKey)
+      if (p.previewKey)     keys.push(p.previewKey)
+      if (p.thumbnailKey)   keys.push(p.thumbnailKey)
+      if (p.watermarkedKey) keys.push(p.watermarkedKey)
+      if (p.finalKey)       keys.push(p.finalKey)
+    }
+    for (const d of downloads) {
+      if (d.zipKey) keys.push(d.zipKey)
+    }
+    return keys
+  },
+
   async delete(galleryId: string): Promise<void> {
     await prisma.gallery.delete({ where: { id: galleryId } })
   },
@@ -291,6 +317,13 @@ export const GalleryRepository = {
         folderId:          source.folderId ?? undefined,
       },
       select: { id: true, shareToken: true, title: true, clientName: true },
+    })
+  },
+
+  async updateCoverPhoto(galleryId: string, coverPhotoId: string | null): Promise<void> {
+    await prisma.gallery.update({
+      where: { id: galleryId },
+      data:  { coverPhotoId },
     })
   },
 

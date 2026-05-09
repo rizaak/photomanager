@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { Trash2, Star, UploadCloud, Loader2 } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 type WatermarkPosition = 'CENTER' | 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_LEFT' | 'BOTTOM_RIGHT'
 
@@ -32,10 +33,12 @@ interface Props {
 }
 
 export function WatermarkPresetsClient({ initialPresets }: Props) {
-  const [presets,   setPresets]   = useState(initialPresets)
-  const [creating,  setCreating]  = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [saving,    setSaving]    = useState(false)
+  const [presets,       setPresets]       = useState(initialPresets)
+  const [creating,      setCreating]      = useState(false)
+  const [uploading,     setUploading]     = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [formError,     setFormError]     = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<WatermarkPreset | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // New preset form state
@@ -57,13 +60,14 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setFormError(null)
     try {
       const form = new FormData()
       form.append('file', file)
       const res = await fetch('/api/watermarks/image', { method: 'POST', body: form })
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error ?? 'Upload failed')
+        setFormError(data.error ?? 'Upload failed')
         return
       }
       const { key } = await res.json()
@@ -78,6 +82,7 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
   async function handleCreate() {
     if (!name.trim() || !imageKey) return
     setSaving(true)
+    setFormError(null)
     try {
       const res = await fetch('/api/watermarks', {
         method:  'POST',
@@ -86,7 +91,7 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
       })
       if (!res.ok) {
         const data = await res.json()
-        alert(data.error ?? 'Failed to create preset')
+        setFormError(data.error ?? 'Failed to create preset')
         return
       }
       const created: WatermarkPreset = await res.json()
@@ -119,11 +124,16 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
   }
 
   async function handleDelete(preset: WatermarkPreset) {
-    if (!confirm(`Delete "${preset.name}"? This cannot be undone.`)) return
-    const res = await fetch(`/api/watermarks/${preset.id}`, { method: 'DELETE' })
+    setConfirmDelete(preset)
+  }
+
+  async function doDelete() {
+    if (!confirmDelete) return
+    const res = await fetch(`/api/watermarks/${confirmDelete.id}`, { method: 'DELETE' })
     if (res.ok || res.status === 204) {
-      setPresets((prev) => prev.filter((p) => p.id !== preset.id))
+      setPresets((prev) => prev.filter((p) => p.id !== confirmDelete.id))
     }
+    setConfirmDelete(null)
   }
 
   return (
@@ -244,6 +254,9 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
               <span className="text-xs font-sans text-stone-600">Set as default for all galleries</span>
             </label>
 
+            {formError && (
+              <p className="text-xs font-sans text-red-500 mb-3">{formError}</p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleCreate}
@@ -322,6 +335,16 @@ export function WatermarkPresetsClient({ initialPresets }: Props) {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={`Delete "${confirmDelete?.name}"?`}
+        description="This watermark preset will be permanently removed. This cannot be undone."
+        confirmLabel="Delete preset"
+        danger
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
     </div>
   )
 }

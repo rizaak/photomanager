@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Check, Copy, Eye, EyeOff, Trash2, X } from 'lucide-react'
+import { DeleteGalleryDialog } from './DeleteGalleryDialog'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -246,12 +248,15 @@ interface Props {
 }
 
 export function GallerySettingsClient({ galleryId, initialSettings, initialPresets, initialWatermarkPresets }: Props) {
+  const router = useRouter()
   const [tab,              setTab]              = useState<Tab>('presentation')
   const [settings,         setSettings]         = useState(initialSettings)
   const [presets,          setPresets]          = useState(initialPresets)
   const [watermarkPresets] = useState(initialWatermarkPresets)
   const [saving,           setSaving]           = useState(false)
   const [saved,            setSaved]            = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleting,         setDeleting]         = useState(false)
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -537,6 +542,44 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
     )
   }
 
+  async function handleDeleteGallery() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/galleries/${galleryId}`, { method: 'DELETE' })
+      if (res.ok || res.status === 204) {
+        router.push('/dashboard')
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function renderDangerZone() {
+    return (
+      <div className="mt-14 pt-8 border-t border-stone-100">
+        <p className="text-[10px] font-sans font-medium uppercase tracking-widest text-red-500 mb-4">
+          Danger Zone
+        </p>
+        <div className="flex items-start justify-between gap-6 max-w-lg border border-red-100 bg-red-50/40 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-sm font-sans font-medium text-stone-800 mb-1">Delete this gallery</p>
+            <p className="text-xs font-sans text-stone-400 leading-relaxed">
+              Permanently removes all photos, sections, client feedback, selections,
+              previews, watermarks, and delivery files. Cannot be undone.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 text-xs font-sans font-medium text-red-600 border border-red-200 hover:bg-red-50 hover:border-red-400 transition-colors"
+          >
+            <Trash2 size={11} strokeWidth={1.75} />
+            Delete
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -569,7 +612,16 @@ export function GallerySettingsClient({ galleryId, initialSettings, initialPrese
         {tab === 'interaction'  && renderInteraction()}
         {tab === 'protection'   && renderProtection()}
         {tab === 'presets'      && renderPresets()}
+        {renderDangerZone()}
       </div>
+
+      <DeleteGalleryDialog
+        open={showDeleteDialog}
+        galleryName={settings.title}
+        busy={deleting}
+        onConfirm={handleDeleteGallery}
+        onCancel={() => { if (!deleting) setShowDeleteDialog(false) }}
+      />
     </div>
   )
 }

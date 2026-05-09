@@ -39,6 +39,26 @@ export const GallerySectionRepository = {
     })
   },
 
+  async findStorageKeysForSection(sectionId: string): Promise<string[]> {
+    const photos = await prisma.photo.findMany({
+      where:  { sectionId },
+      select: { originalKey: true, previewKey: true, thumbnailKey: true, watermarkedKey: true, finalKey: true },
+    })
+    const keys: string[] = []
+    for (const p of photos) {
+      keys.push(p.originalKey)
+      if (p.previewKey)     keys.push(p.previewKey)
+      if (p.thumbnailKey)   keys.push(p.thumbnailKey)
+      if (p.watermarkedKey) keys.push(p.watermarkedKey)
+      if (p.finalKey)       keys.push(p.finalKey)
+    }
+    return keys
+  },
+
+  async deletePhotos(sectionId: string): Promise<void> {
+    await prisma.photo.deleteMany({ where: { sectionId } })
+  },
+
   async delete(id: string) {
     await prisma.gallerySection.delete({ where: { id } })
   },

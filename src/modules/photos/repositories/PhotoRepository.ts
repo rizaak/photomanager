@@ -305,6 +305,15 @@ export const PhotoRepository = {
     )
   },
 
+  /** Find the next READY photo to use as gallery cover after the given photo is removed. */
+  async findNextForCover(galleryId: string, excludeId: string): Promise<{ id: string } | null> {
+    return prisma.photo.findFirst({
+      where:   { galleryId, id: { not: excludeId }, status: PhotoStatus.READY },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select:  { id: true },
+    })
+  },
+
   /** Batch-fetch thumbnailKey for a set of photo IDs. Returns a Map<photoId, thumbnailKey>. */
   async findThumbnailKeysByIds(ids: string[]): Promise<Map<string, string>> {
     if (ids.length === 0) return new Map()

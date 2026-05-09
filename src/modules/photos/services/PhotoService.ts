@@ -4,6 +4,7 @@ import { storageProvider } from '@/src/infrastructure/storage/StorageProvider'
 import { QueueProvider } from '@/src/infrastructure/queue/QueueProvider'
 import { PhotoRepository } from '../repositories/PhotoRepository'
 import { GallerySectionRepository } from '../../galleries/repositories/GallerySectionRepository'
+import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
 import { UsageService } from '../../photographers/services/UsageService'
 import { ActivityService } from '../../activity/services/ActivityService'
 import { WatermarkRepository } from '../../watermarks/repositories/WatermarkRepository'
@@ -65,13 +66,19 @@ async function deletePhotoById(photoId: string, photographerId: string): Promise
 
   const gallery = await prisma.gallery.findUnique({
     where:  { id: ref.galleryId },
-    select: { photographerId: true },
+    select: { photographerId: true, coverPhotoId: true },
   })
   if (!gallery || gallery.photographerId !== photographerId) {
     throw Object.assign(new Error('Forbidden'), { status: 403 })
   }
 
   await PhotoRepository.deletePhoto(photoId)
+
+  // If the deleted photo was the gallery cover, assign the next available photo
+  if (gallery.coverPhotoId === photoId) {
+    const next = await PhotoRepository.findNextForCover(ref.galleryId, photoId)
+    await GalleryRepository.updateCoverPhoto(ref.galleryId, next?.id ?? null)
+  }
 
   const keys = [ref.originalKey, ref.thumbnailKey, ref.previewKey, ref.watermarkedKey, ref.finalKey]
     .filter(Boolean) as string[]

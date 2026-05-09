@@ -244,7 +244,29 @@ export const GalleryService = {
     const gallery = await GalleryRepository.findDetail(galleryId)
     if (!gallery) throw Object.assign(new Error('Not found'), { status: 404 })
     if (gallery.photographerId !== photographerId) throw Object.assign(new Error('Forbidden'), { status: 403 })
+
+    // Collect all R2 keys before DB deletion so cascade doesn't race us
+    const storageKeys = await GalleryRepository.findAllStorageKeys(galleryId)
+
+    // Delete DB records — cascade removes photos, sections, selections, comments, etc.
     await GalleryRepository.delete(galleryId)
+
+    // Delete R2 objects — log failures but don't re-throw; DB is already clean
+    if (storageKeys.length > 0) {
+      const failed: string[] = []
+      await Promise.all(
+        storageKeys.map(async (key) => {
+          try { await storageProvider.delete(key) }
+          catch (err) {
+            console.error(`[gallery-delete] R2 delete failed: ${key}`, err)
+            failed.push(key)
+          }
+        }),
+      )
+      if (failed.length > 0) {
+        console.warn(`[gallery-delete] ${failed.length} R2 key(s) not deleted for gallery ${galleryId}:`, failed)
+      }
+    }
   },
 
   // ── Duplicate ──────────────────────────────────────────────────────────────

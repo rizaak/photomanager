@@ -28,8 +28,7 @@ export const LightroomUploadService = {
     originalFilename: string
     fileSize:         number
     galleryId?:       string   // explicit target gallery
-    galleryName?:     string   // match or create by name
-    createGallery?:   boolean  // create new gallery when galleryName provided
+    galleryName?:     string   // find-or-create by name
   }) {
     // ── 1. Authenticate API key ───────────────────────────────────────────────
     const keyHash   = ImportKeyRepository.hashKey(opts.apiKeyPlaintext)
@@ -51,26 +50,16 @@ export const LightroomUploadService = {
         throw Object.assign(new Error('Gallery not found or access denied'), { status: 404 })
       }
       resolvedGalleryId = opts.galleryId
-    } else if (opts.createGallery && opts.galleryName?.trim()) {
-      // Create new gallery with the given name
-      const created = await GalleryRepository.create(photographerId, {
-        title:      opts.galleryName.trim(),
-        clientName: '',
-      })
-      resolvedGalleryId = created.id
     } else if (opts.galleryName?.trim()) {
-      // Match existing gallery by name (case-insensitive)
-      const match = await GalleryRepository.findByTitleForPhotographer(
-        opts.galleryName.trim(),
-        photographerId,
-      )
-      if (!match) {
-        throw Object.assign(
-          new Error(`No gallery named "${opts.galleryName.trim()}" found. Pass create_gallery=true to create it.`),
-          { status: 404 },
-        )
+      // Find-or-create gallery by name (case-insensitive)
+      const name  = opts.galleryName.trim()
+      const match = await GalleryRepository.findByTitleForPhotographer(name, photographerId)
+      if (match) {
+        resolvedGalleryId = match.id
+      } else {
+        const created = await GalleryRepository.create(photographerId, { title: name, clientName: '' })
+        resolvedGalleryId = created.id
       }
-      resolvedGalleryId = match.id
     } else if (defaultGalleryId) {
       // Fall back to key's default gallery
       resolvedGalleryId = defaultGalleryId

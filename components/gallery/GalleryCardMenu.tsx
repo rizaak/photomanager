@@ -7,6 +7,7 @@ import {
   Archive, ArchiveRestore, Trash2, MoreHorizontal, ChevronRight, X, Check,
 } from 'lucide-react'
 import type { Gallery, GalleryFolder } from '@/lib/types'
+import { DeleteGalleryDialog } from './DeleteGalleryDialog'
 
 interface GalleryCardMenuProps {
   gallery: Gallery
@@ -54,46 +55,6 @@ function RenameInput({
             className="flex-1 text-[11px] font-sans font-medium text-white bg-stone-800 hover:bg-stone-700 py-1.5 transition-colors disabled:opacity-40"
           >
             Save
-          </button>
-          <button
-            onClick={onCancel}
-            className="flex-1 text-[11px] font-sans text-stone-500 hover:text-stone-700 border border-stone-200 py-1.5"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Delete confirmation ───────────────────────────────────────────────────────
-function DeleteConfirm({
-  title,
-  onConfirm,
-  onCancel,
-}: {
-  title: string
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.35)' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
-    >
-      <div className="bg-white shadow-2xl p-5 w-80">
-        <p className="text-sm font-sans text-stone-800 mb-1 font-medium">Delete gallery?</p>
-        <p className="text-xs font-sans text-stone-500 mb-4">
-          <span className="font-medium text-stone-700">{title}</span> and all its photos will be permanently deleted. This cannot be undone.
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={onConfirm}
-            className="flex-1 text-[11px] font-sans font-medium text-white bg-red-500 hover:bg-red-600 py-1.5 transition-colors"
-          >
-            Delete gallery
           </button>
           <button
             onClick={onCancel}
@@ -179,6 +140,7 @@ export function GalleryCardMenu({ gallery, folders, onTitleChange }: GalleryCard
   const [modal,       setModal]       = useState<'rename' | 'delete' | 'send' | null>(null)
   const [copied,      setCopied]      = useState(false)
   const [busy,        setBusy]        = useState(false)
+  const [deleting,    setDeleting]    = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -260,9 +222,14 @@ export function GalleryCardMenu({ gallery, folders, onTitleChange }: GalleryCard
   }
 
   async function deleteGallery() {
-    setModal(null)
-    await fetch(`/api/galleries/${gallery.id}`, { method: 'DELETE' })
-    router.refresh()
+    setDeleting(true)
+    try {
+      await fetch(`/api/galleries/${gallery.id}`, { method: 'DELETE' })
+      setModal(null)
+      router.refresh()
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const isArchived = gallery.status === 'archived'
@@ -394,13 +361,13 @@ export function GalleryCardMenu({ gallery, folders, onTitleChange }: GalleryCard
           onCancel={() => setModal(null)}
         />
       )}
-      {modal === 'delete' && (
-        <DeleteConfirm
-          title={gallery.title}
-          onConfirm={deleteGallery}
-          onCancel={() => setModal(null)}
-        />
-      )}
+      <DeleteGalleryDialog
+        open={modal === 'delete'}
+        galleryName={gallery.title}
+        busy={deleting}
+        onConfirm={deleteGallery}
+        onCancel={() => { if (!deleting) setModal(null) }}
+      />
       {modal === 'send' && (
         <SendDialog shareUrl={shareUrl} onClose={() => setModal(null)} />
       )}
