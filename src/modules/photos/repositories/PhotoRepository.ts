@@ -329,4 +329,19 @@ export const PhotoRepository = {
     }
     return result
   },
+
+  /** Batch-fetch the best cover key (previewKey preferred, thumbnailKey fallback) for a set of photo IDs. */
+  async findPreviewKeysByIds(ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map()
+    const rows = await prisma.photo.findMany({
+      where:  { id: { in: ids }, status: 'READY' },
+      select: { id: true, previewKey: true, thumbnailKey: true },
+    })
+    const result = new Map<string, string>()
+    for (const r of rows) {
+      const key = r.previewKey ?? r.thumbnailKey
+      if (key) result.set(r.id, key)
+    }
+    return result
+  },
 }

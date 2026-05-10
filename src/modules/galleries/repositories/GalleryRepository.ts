@@ -118,7 +118,7 @@ export const GalleryRepository = {
           where:   { status: 'READY' as const, thumbnailKey: { not: null as null } },
           orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
           take:    1,
-          select:  { id: true, thumbnailKey: true },
+          select:  { id: true, thumbnailKey: true, previewKey: true },
         },
         selections: {
           // Prioritise the most recent submitted selection; fall back to latest draft

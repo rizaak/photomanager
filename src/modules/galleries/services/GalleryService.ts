@@ -189,17 +189,17 @@ export const GalleryService = {
     const sel        = gallery.selections[0] ?? null
     const firstPhoto = gallery.photos[0] ?? null
 
-    // Resolve cover thumbnail key: prefer coverPhotoId, fall back to first photo
+    // Resolve cover key: use previewKey (1400 px) for the full-width header, fall back to thumbnailKey
     let coverKey: string | null = null
     if (gallery.coverPhotoId) {
       if (gallery.coverPhotoId === firstPhoto?.id) {
-        coverKey = firstPhoto.thumbnailKey ?? null
+        coverKey = firstPhoto.previewKey ?? firstPhoto.thumbnailKey ?? null
       } else {
-        const keyMap = await PhotoRepository.findThumbnailKeysByIds([gallery.coverPhotoId])
-        coverKey = keyMap.get(gallery.coverPhotoId) ?? firstPhoto?.thumbnailKey ?? null
+        const keyMap = await PhotoRepository.findPreviewKeysByIds([gallery.coverPhotoId])
+        coverKey = keyMap.get(gallery.coverPhotoId) ?? firstPhoto?.previewKey ?? firstPhoto?.thumbnailKey ?? null
       }
     } else {
-      coverKey = firstPhoto?.thumbnailKey ?? null
+      coverKey = firstPhoto?.previewKey ?? firstPhoto?.thumbnailKey ?? null
     }
 
     const coverUrl = coverKey
