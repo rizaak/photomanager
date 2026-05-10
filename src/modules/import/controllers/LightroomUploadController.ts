@@ -54,7 +54,7 @@ export async function handleLightroomUpload(req: NextRequest): Promise<NextRespo
     })
 
     return NextResponse.json(
-      { success: true, id: result.id, galleryId: result.galleryId, url: result.url },
+      { success: true, id: result.id, galleryId: result.galleryId, sectionId: result.sectionId ?? null, url: result.url },
       { status: 202 },
     )
   } catch (err) {

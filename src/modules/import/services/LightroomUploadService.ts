@@ -6,6 +6,7 @@ import { PhotoRepository } from '../../photos/repositories/PhotoRepository'
 import { UsageService } from '../../photographers/services/UsageService'
 import { ImportKeyRepository } from '../repositories/ImportKeyRepository'
 import { GalleryRepository } from '../../galleries/repositories/GalleryRepository'
+import { GallerySectionRepository } from '../../galleries/repositories/GallerySectionRepository'
 import { GalleryService } from '../../galleries/services/GalleryService'
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -27,8 +28,8 @@ export const LightroomUploadService = {
     filename:         string
     originalFilename: string
     fileSize:         number
-    galleryId?:       string   // explicit target gallery
-    galleryName?:     string   // find-or-create by name
+    galleryId?:       string   // explicit target gallery UUID
+    galleryName?:     string   // "GalleryName" or "GalleryName/SectionName"
   }) {
     // ── 1. Authenticate API key ───────────────────────────────────────────────
     const keyHash   = ImportKeyRepository.hashKey(opts.apiKeyPlaintext)
@@ -40,24 +41,37 @@ export const LightroomUploadService = {
 
     const { id: keyId, photographerId, defaultGalleryId } = keyRecord
 
-    // ── 2. Resolve gallery ────────────────────────────────────────────────────
+    // ── 2. Parse gallery_name → galleryTitle + optional sectionName ───────────
+    let parsedGalleryTitle: string | undefined
+    let parsedSectionName:  string | undefined
+
+    if (opts.galleryName?.trim()) {
+      const slashIdx = opts.galleryName.indexOf('/')
+      if (slashIdx !== -1) {
+        parsedGalleryTitle = opts.galleryName.slice(0, slashIdx).trim()
+        parsedSectionName  = opts.galleryName.slice(slashIdx + 1).trim() || undefined
+      } else {
+        parsedGalleryTitle = opts.galleryName.trim()
+      }
+    }
+
+    // ── 3. Resolve gallery ────────────────────────────────────────────────────
     let resolvedGalleryId: string
 
     if (opts.galleryId) {
-      // Explicit gallery — verify ownership
+      // Explicit gallery UUID — verify ownership
       const gallery = await GalleryService.getDetail(opts.galleryId, photographerId)
       if (!gallery) {
         throw Object.assign(new Error('Gallery not found or access denied'), { status: 404 })
       }
       resolvedGalleryId = opts.galleryId
-    } else if (opts.galleryName?.trim()) {
-      // Find-or-create gallery by name (case-insensitive)
-      const name  = opts.galleryName.trim()
-      const match = await GalleryRepository.findByTitleForPhotographer(name, photographerId)
+    } else if (parsedGalleryTitle) {
+      // Find-or-create gallery by parsed name (case-insensitive)
+      const match = await GalleryRepository.findByTitleForPhotographer(parsedGalleryTitle, photographerId)
       if (match) {
         resolvedGalleryId = match.id
       } else {
-        const created = await GalleryRepository.create(photographerId, { title: name, clientName: '' })
+        const created = await GalleryRepository.create(photographerId, { title: parsedGalleryTitle, clientName: '' })
         resolvedGalleryId = created.id
       }
     } else if (defaultGalleryId) {
@@ -65,7 +79,7 @@ export const LightroomUploadService = {
       resolvedGalleryId = defaultGalleryId
     } else {
       // Auto-create or reuse a dated gallery — no gallery context required from Lightroom
-      const today = new Date().toISOString().slice(0, 10)
+      const today    = new Date().toISOString().slice(0, 10)
       const autoName = `Lightroom Import — ${today}`
       const existing = await GalleryRepository.findByTitleForPhotographer(autoName, photographerId)
       if (existing) {
@@ -76,7 +90,24 @@ export const LightroomUploadService = {
       }
     }
 
-    // ── 3. Validate file ──────────────────────────────────────────────────────
+    // ── 4. Resolve section (find-or-create, deduped by normalized title) ──────
+    let resolvedSectionId: string | undefined
+
+    if (parsedSectionName) {
+      const existingSection = await GallerySectionRepository.findByTitleForGallery(
+        resolvedGalleryId,
+        parsedSectionName,
+      )
+      if (existingSection) {
+        resolvedSectionId = existingSection.id
+      } else {
+        const count   = await GallerySectionRepository.countByGallery(resolvedGalleryId)
+        const created = await GallerySectionRepository.create(resolvedGalleryId, parsedSectionName, count)
+        resolvedSectionId = created.id
+      }
+    }
+
+    // ── 5. Validate file ──────────────────────────────────────────────────────
     if (!ALLOWED_MIME_TYPES.has(opts.mimeType)) {
       throw Object.assign(
         new Error('Unsupported file type. Allowed: JPEG, PNG, HEIC, WEBP, TIFF'),
@@ -90,10 +121,10 @@ export const LightroomUploadService = {
       throw Object.assign(new Error('filename is required'), { status: 400 })
     }
 
-    // ── 4. Check storage quota ────────────────────────────────────────────────
+    // ── 6. Check storage quota ────────────────────────────────────────────────
     await UsageService.checkStorageLimit(photographerId, opts.fileSize)
 
-    // ── 5. Persist Photo record ───────────────────────────────────────────────
+    // ── 7. Persist Photo record ───────────────────────────────────────────────
     const photoId     = uuidv4()
     const ext         = opts.filename.split('.').pop()?.toLowerCase() ?? 'jpg'
     const originalKey = `photos/originals/${photoId}.${ext}`
@@ -107,9 +138,10 @@ export const LightroomUploadService = {
       originalKey,
       sizeBytes:        BigInt(opts.fileSize),
       mimeType:         opts.mimeType,
+      sectionId:        resolvedSectionId,
     })
 
-    // ── 6. Upload to R2 + enqueue processing ─────────────────────────────────
+    // ── 8. Upload to R2 + enqueue processing ─────────────────────────────────
     try {
       await storageProvider.upload(originalKey, opts.fileBuffer, opts.mimeType)
       await UsageService.incrementStorage(photographerId, opts.fileSize)
@@ -120,13 +152,13 @@ export const LightroomUploadService = {
       throw err
     }
 
-    // ── 7. Touch lastUsedAt (fire-and-forget) ─────────────────────────────────
+    // ── 9. Touch lastUsedAt (fire-and-forget) ─────────────────────────────────
     ImportKeyRepository.touchLastUsed(keyId).catch(() => {})
 
-    // ── 8. Build response URL ─────────────────────────────────────────────────
+    // ── 10. Build response URL ────────────────────────────────────────────────
     const base = (process.env.APP_BASE_URL ?? '').replace(/\/$/, '')
     const url  = `${base}/dashboard/galleries/${resolvedGalleryId}`
 
-    return { id: photoId, galleryId: resolvedGalleryId, url }
+    return { id: photoId, galleryId: resolvedGalleryId, sectionId: resolvedSectionId, url }
   },
 }

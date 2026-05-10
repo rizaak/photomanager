@@ -23,6 +23,7 @@ export interface CreatePhotoInput {
   mimeType:         string
   originalFilename?: string
   source?:          import('@prisma/client').PhotoSource
+  sectionId?:       string
 }
 
 export interface UpdateProcessedInput {
@@ -47,6 +48,7 @@ export const PhotoRepository = {
         status:           PhotoStatus.UPLOADING,
         ...(input.originalFilename && { originalFilename: input.originalFilename }),
         ...(input.source           && { source: input.source }),
+        ...(input.sectionId        && { sectionId: input.sectionId }),
       },
     })
   },

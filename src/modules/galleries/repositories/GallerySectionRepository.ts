@@ -20,6 +20,13 @@ export const GallerySectionRepository = {
     return prisma.gallerySection.count({ where: { galleryId } })
   },
 
+  async findByTitleForGallery(galleryId: string, title: string) {
+    return prisma.gallerySection.findFirst({
+      where:  { galleryId, title: { equals: title, mode: 'insensitive' } },
+      select: { id: true, title: true },
+    })
+  },
+
   async create(galleryId: string, title: string, sortOrder: number, visibleToClient?: boolean, watermarkEnabled?: boolean) {
     return prisma.gallerySection.create({
       data: {
